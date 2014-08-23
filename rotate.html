@@ -1,0 +1,241 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='utf-8'>
+<title>rot</title>
+<style>
+html{background-color:black;color:white;}
+body{text-align:center;}
+#board
+{
+position:relative;
+background-color:#101020;
+font-size:50px;
+width:10em;
+height:10em;
+transition:width 0.2s,height 0.2s;
+transition-timing-function:ease-in-out;
+overflow:hidden;
+margin-left:auto;
+margin-right:auto;
+-moz-user-select:none;-webkit-user-select:none;
+}
+#board .piece
+{
+transition:left 0.2s,top 0.2s,color 0.2s,transform 0.2s;
+transition-timing-function:ease-in-out;
+position:absolute;
+width:1.4em;
+height:1.4em;
+line-height:1.4em;
+font-family:"Ubuntu Mono";
+font-weight:bold;
+margin:0.26em;
+border:0.04em solid #444;
+border-bottom-color:#6dd;
+background-color:black;
+z-index:0;
+}
+#board .piece[data-correct='2']{color:#9f9;}/*correct position and orientation*/
+#board .piece[data-correct='1']{color:#9df;}/*correct position but not orientation*/
+#board .piece[data-correct='0']{color:#fff;}/*wrong position*/
+#board .interface
+{
+position:absolute;
+top:0;
+left:0;
+opacity:0;
+width:100%;
+height:100%;
+border:none;
+padding:0;
+cursor:default;
+z-index:1;
+}
+button{font-family:"Droid Sans";}
+</style>
+</head>
+<body>
+<div>
+<button onclick='mouse_enabled = !mouse_enabled;I.focus();'>toggle mouse input</button>
+<button onclick='orient_enabled = !orient_enabled;redraw();I.focus();'>toggle orientation</button>
+<button onclick='scramble();redraw();I.focus();'>scramble</button>
+<button onclick='size=4;init();I.focus();'>4</button>
+<button onclick='size=5;init();I.focus();'>5</button>
+<button onclick='size=6;init();I.focus();'>6</button>
+<button onclick='size=+prompt("size",5);init();'>n</button>
+</div>
+<div id='board'></div>
+<p>Controls: num pad or {7, 8, 9, u, i, o, j, k, l} or mouse click;<br>holding Shift (except if using num pad with num lock on) or right-clicking rotates anticlockwise.</p>
+<script>
+// >>>>global variables
+var B = document.getElementById('board');
+var I;
+var divs = [];
+var size = 5;
+var state = [];
+var state_o = [];
+var mouse_enabled = true;
+var orient_enabled = true; // this only controls whether the orientation is visible (and maybe whenever I get around to implementing an autosolver it'll be affected by this flag too)
+
+function count(n)
+{
+var a = [];
+for (var i = 0; i < n; i++) a[i] = i;
+return a;
+}
+
+function init()
+{
+if (size < 4) {console.log('size='+size+' too small'); size = Math.sqrt(state.length); return;}
+var n = divs.length;
+state = count(size*size);
+state_o = state.map(function () {return 0;});
+var labels = size*size <= 25 ? 'abcdefghijklmnopqrstuvwxy' : size*size === 36 ? '0123456789abcdefghijklmnopqrstuvwxyz' : state;
+while (n < size*size)
+{
+var div = document.createElement('div');
+div.className = 'piece';
+B.appendChild(div);
+divs.push(div);
+n++;
+}
+while (n > size*size)
+{
+B.removeChild(divs.pop());
+n--;
+}
+for (var i = 0; i < n; i++) divs[i].textContent = labels[i];
+redraw();
+if(B.querySelector('button.interface') === null)
+{
+I = document.createElement('button');
+I.className = 'interface';
+B.appendChild(I);
+I.addEventListener('click',click,false);
+I.addEventListener('contextmenu',click,false);
+I.addEventListener('dblclick',function (e) {e.preventDefault();},false);
+I.addEventListener('keydown',key,false);
+}
+I.focus();
+B.style.width = B.style.height = 2*size+'em';
+}
+
+function scramble()
+{
+state = count(size*size);
+var indices = state.filter(function (n) {var x = n%size, y = (n-x)/size; return x < 3 || size-x <= 3 || y < 3 || size-y <= 3; });
+for (var i = 1; i < indices.length; i++)
+{
+var r = Math.floor(Math.random()*(i+1));
+state[indices[i]] = state[indices[r]];
+state[indices[r]] = indices[i];
+}
+if (orient_enabled)
+{
+if (size > 5) console.log('note: scrambling for oriented mode not yet proven to be solvable for size > 5');
+function parity(n) {var x = n%size; return x+(n-x)/size;}
+var s = 0;
+for (var i = 0; i < indices.length; i++)
+{
+var j = indices[i], k = state[j];
+if (i < indices.length-1) {state_o[k] = parity(j) + parity(k) + 2*Math.floor(Math.random()*(4*size-12)); s += state_o[k];}
+else {state_o[k] = ((-s)%(4*size-12)+4*size-12)%(4*size-12);}
+}
+}
+}
+
+function count_cycles()
+{
+var n = size*size;
+var c = 0;
+var v = count(n).map(function () {return false;});
+for (var i = 0; i < n; i++)
+{
+if (v[i]) continue;
+var I = i;
+while (!v[I]) {v[I] = true; I = state[I];}
+c++;
+}
+return c;
+}
+
+function redraw()
+{
+for (var i = 0; i < size; i++) for (var j = 0; j < size; j++)
+{
+var x = state[i+j*size]%size, y = (state[i+j*size]-x)/size;
+divs[x+y*size].style.left = i*2+'em';
+divs[x+y*size].style.top  = j*2+'em';
+divs[x+y*size].style.transform = orient_enabled ? 'rotate('+(state_o[x+y*size]*90/(size-3))+'deg)' : '';
+divs[x+y*size].dataset.correct = (i === x && j === y)*(1+ +(state_o[x+y*size]%(4*size-12) === 0 || !orient_enabled));
+}
+}
+
+function move(x,y,ccw)
+{
+var i = x+size*y;
+var t = state[i];
+for (var j = 0; j < 4; j++)
+{
+var d = [size,1,-size,-1][j^ccw];
+for (var k = 0; k < size-3; k++)
+{
+state_o[state[i]] += ccw ? -1 : 1;
+state[i] = state[i+d];
+i += d;
+}
+}
+state[i-d] = t;
+}
+
+function autoplay(delay)
+{
+if (autoqueue.length === 0) return;
+else
+{
+var m = autoqueue.shift();
+var x = m%3, y = (m-x)/3%3, ccw = Math.floor(m/9);
+move(x,y,ccw);
+redraw();
+setTimeout(autoplay.bind(undefined,delay),delay || 200);
+}
+}
+
+var autoqueue = []; // >more global variables
+
+function click(e)
+{
+if (!mouse_enabled) return;
+e.preventDefault();
+var bcr = B.getBoundingClientRect();
+var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
+var unit = 2*parseInt(getComputedStyle(B).fontSize);
+x = x/unit - (size-3)/2;
+y = y/unit - (size-3)/2;
+if (x < 0 || x >= 3 || y < 0 || y >= 3) return false;
+move(Math.floor(x),Math.floor(y),e.shiftKey^(e.type === 'contextmenu'));
+redraw();
+}
+
+function key(e)
+{
+var keymap={
+55:0,56:1,57:2,71:3,67:4,82:5,72:6,84:7,78:8,//dvorak
+85:3,73:4,79:5,74:6,75:7,76:8,//qwerty
+36:0,38:1,33:2,37:3,12:4,39:5,35:6,40:7,34:8,//numpad, numlock off
+103:0,104:1,105:2,100:3,101:4,102:5,97:6,98:7,99:8//numpad, numlock on
+};
+if(e.keyCode in keymap && !e.ctrlKey && !e.altKey)
+{
+e.preventDefault();
+var m=keymap[e.keyCode];
+move(m%3,(m-m%3)/3,e.shiftKey);
+redraw();
+}
+}
+
+init();
+</script>
+</body>
+</html>

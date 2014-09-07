@@ -131,17 +131,14 @@ var r = Math.floor(Math.random()*(i+1));
 state[indices[i]] = state[indices[r]];
 state[indices[r]] = indices[i];
 }
-if (orient_enabled)
-{
-if (size > 5) console.log('note: scrambling for oriented mode not yet proven to be solvable for size > 5');
+if (orient_enabled && size > 6) console.log('note: scrambling for oriented mode not yet proven to be solvable for size > 6');
 function parity(n) {var x = n%size; return x+(n-x)/size;}
 var s = 0;
 for (var i = 0; i < indices.length; i++)
 {
 var j = indices[i], k = state[j];
-if (i < indices.length-1) {state_o[k] = parity(j) + parity(k) + 2*Math.floor(Math.random()*(4*size-12)); s += state_o[k];}
+if (i < indices.length-1) {state_o[k] = (parity(j) + parity(k) + 2*Math.floor(Math.random()*(2*size-6)))%(4*size-12); s += state_o[k];}
 else {state_o[k] = ((-s)%(4*size-12)+4*size-12)%(4*size-12);}
-}
 }
 }
 

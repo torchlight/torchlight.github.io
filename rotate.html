@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset='utf-8'>
+<meta name='viewport' content='width=600,height=650'>
 <title>rot</title>
 <style>
 html{background-color:black;color:white;}
@@ -11,8 +12,8 @@ body{text-align:center;}
 position:relative;
 background-color:#101020;
 font-size:50px;
-width:10em;
-height:10em;
+width:8em;
+height:8em;
 transition:width 0.2s,height 0.2s;
 transition-timing-function:ease-in-out;
 overflow:hidden;
@@ -25,13 +26,14 @@ margin-right:auto;
 transition:left 0.2s,top 0.2s,color 0.2s,transform 0.2s;
 transition-timing-function:ease-in-out;
 position:absolute;
-width:1.4em;
-height:1.4em;
-line-height:1.4em;
+width:1.52em;
+height:1.52em;
+line-height:1.52em;
 font-family:"Ubuntu Mono";
 font-weight:bold;
-margin:0.26em;
+margin:0.2em;
 border:0.04em solid #444;
+border-radius:0.5em;
 border-bottom-color:#6dd;
 background-color:black;
 z-index:0;
@@ -39,6 +41,7 @@ z-index:0;
 #board .piece[data-correct='2']{color:#9f9;}/*correct position and orientation*/
 #board .piece[data-correct='1']{color:#9df;}/*correct position but not orientation*/
 #board .piece[data-correct='0']{color:#fff;}/*wrong position*/
+#board .piece[data-sessile='true']{border-color:black;color:#444;}/*sessile piece*/
 #board .interface
 {
 position:absolute;
@@ -56,34 +59,40 @@ button{font-family:"Droid Sans";}
 </style>
 </head>
 <body>
+<div id='board'></div>
 <div>
 <button onclick='mouse_enabled = !mouse_enabled;I.focus();'>toggle mouse input</button>
+<button onclick='touch_enabled = !touch_enabled;I.focus();'>toggle fancy touch input</button>
+<button onclick='B.style.fontSize = prompt("font size","50px");'>font size</button><br>
 <button onclick='orient_enabled = !orient_enabled;redraw();I.focus();'>toggle orientation</button>
 <button onclick='scramble();redraw();I.focus();'>scramble</button>
+<button onclick='autosolve();autoplay(200);'>autosolve</button>
 <button onclick='size=4;init();I.focus();'>4</button>
 <button onclick='size=5;init();I.focus();'>5</button>
 <button onclick='size=6;init();I.focus();'>6</button>
 <button onclick='size=+prompt("size",5);init();'>n</button>
 </div>
-<div id='board'></div>
-<p>Controls: num pad or {7, 8, 9, u, i, o, j, k, l} or mouse click;<br>holding Shift (except if using num pad with num lock on) or right-clicking rotates anticlockwise.</p>
+<p>Controls: num pad or {7, 8, 9, u, i, o, j, k, l} or mouse click or drag (size 4 only);<br>holding Shift (except if using num pad with num lock on) or right-clicking rotates anticlockwise.</p>
+<script src='rotate.solver.js'></script>
 <script>
+'use strict';
+
 // >>>>global variables
 var B = document.getElementById('board');
 var I;
 var divs = [];
-var size = 5;
+var size = 4;
 var state = [];
 var state_o = [];
 var mouse_enabled = true;
-var orient_enabled = true; // this only controls whether the orientation is visible (and maybe whenever I get around to implementing an autosolver it'll be affected by this flag too)
+var touch_enabled = true;
+var orient_enabled = true; // this only controls whether the orientation is visible (and the autosolver)
 
-function count(n)
-{
+if (!window.count) window.count = function (n) {
 var a = [];
 for (var i = 0; i < n; i++) a[i] = i;
 return a;
-}
+}; // this should be loaded with the solver but in case we're on a lame browser that doesn't load that script correctly...
 
 function init()
 {
@@ -96,6 +105,7 @@ while (n < size*size)
 {
 var div = document.createElement('div');
 div.className = 'piece';
+//div.textContent = labels[n];
 B.appendChild(div);
 divs.push(div);
 n++;
@@ -105,7 +115,11 @@ while (n > size*size)
 B.removeChild(divs.pop());
 n--;
 }
-for (var i = 0; i < n; i++) divs[i].textContent = labels[i];
+for (var i = 0; i < n; i++)
+{
+divs[i].textContent = labels[i];
+divs[i].dataset.sessile = '' + (i%size >= 3 && i%size < size-3 && i >= 3*size && i < (size-3)*size);
+}
 redraw();
 if(B.querySelector('button.interface') === null)
 {
@@ -114,7 +128,15 @@ I.className = 'interface';
 B.appendChild(I);
 I.addEventListener('click',click,false);
 I.addEventListener('contextmenu',click,false);
-I.addEventListener('dblclick',function (e) {e.preventDefault();},false);
+//I.addEventListener('dblclick',function (e) {e.preventDefault();},false);
+I.addEventListener('touchstart',touch,false);
+I.addEventListener('touchend',touch,false);
+I.addEventListener('touchmove',touch,false);
+I.addEventListener('touchcancel',touch,false);
+I.addEventListener('mousedown',touchemu,false);//touch emulation handlers
+I.addEventListener('mouseup',touchemu,false);
+I.addEventListener('mousemove',touchemu,false);
+I.addEventListener('mouseout',touchemu,false);
 I.addEventListener('keydown',key,false);
 }
 I.focus();
@@ -142,21 +164,6 @@ else {state_o[k] = ((-s)%(4*size-12)+4*size-12)%(4*size-12);}
 }
 }
 
-function count_cycles()
-{
-var n = size*size;
-var c = 0;
-var v = count(n).map(function () {return false;});
-for (var i = 0; i < n; i++)
-{
-if (v[i]) continue;
-var I = i;
-while (!v[I]) {v[I] = true; I = state[I];}
-c++;
-}
-return c;
-}
-
 function redraw()
 {
 for (var i = 0; i < size; i++) for (var j = 0; j < size; j++)
@@ -164,7 +171,14 @@ for (var i = 0; i < size; i++) for (var j = 0; j < size; j++)
 var x = state[i+j*size]%size, y = (state[i+j*size]-x)/size;
 divs[x+y*size].style.left = i*2+'em';
 divs[x+y*size].style.top  = j*2+'em';
-divs[x+y*size].style.transform = orient_enabled ? 'rotate('+(state_o[x+y*size]*90/(size-3))+'deg)' : '';
+var angle = (state_o[x+y*size]/(4*size-12))*6.283185307179586, c = Math.cos(angle).toFixed(4), s = Math.sin(angle).toFixed(4);
+// this needs to be rounded because Chrome is dumb and doesn't support scientific notation in CSS
+var transform = (navigator.userAgent.indexOf('AppleWebKit') > 0) ? 'matrix('+[c,s,-s,c,0,0]+')' : ('rotate('+(state_o[x+y*size]*90/(size-3))+'deg)');
+// Chrome is also the only browser that currently handles matrix interpolation correctly :V
+// (and of course there's no way to check if a browser does this correctly short of actually trying
+// to animate it and monitoring with checkComputedStyle but holy shit that sounds like effort;
+// web dev sucks forever)
+divs[x+y*size].style.transform = orient_enabled ? transform : '';
 divs[x+y*size].dataset.correct = (i === x && j === y)*(1+ +(state_o[x+y*size]%(4*size-12) === 0 || !orient_enabled));
 }
 }
@@ -199,20 +213,119 @@ setTimeout(autoplay.bind(undefined,delay),delay || 200);
 }
 }
 
-var autoqueue = []; // >more global variables
+var autoqueue = [];
+
+function autosolve()
+{
+if (autoqueue.length !== 0) {autoqueue = []; return;}
+if (size === 4) autoqueue = solve4c(unconvert_state([state,state_o]),orient_enabled);
+else if (size === 5 && !orient_enabled) autoqueue = solve5a(state);
+autoqueue = simplify_move_sequence(autoqueue,4*size-12);
+}
 
 function click(e)
 {
 if (!mouse_enabled) return;
+if (touch_enabled && size === 4) return; // defer to touch emulation (bound to mouseup/down/move)
 e.preventDefault();
 var bcr = B.getBoundingClientRect();
 var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
 var unit = 2*parseInt(getComputedStyle(B).fontSize);
-x = x/unit - (size-3)/2;
-y = y/unit - (size-3)/2;
+x /= unit; y /= unit;
+x -= (size-3)/2; y -= (size-3)/2;
 if (x < 0 || x >= 3 || y < 0 || y >= 3) return false;
 move(Math.floor(x),Math.floor(y),e.shiftKey^(e.type === 'contextmenu'));
 redraw();
+}
+
+var touchhandler = [];
+touchhandler.register = function (id,x,y) {
+	touchhandler.push(id);
+	touchhandler['touch'+id] = [-1,-1];
+	touchhandler.update(id,x,y);
+	console.log('registered id '+id);
+};
+touchhandler.deregister = function (id) {
+	var i = touchhandler.indexOf(id);
+	if (i !== -1) {touchhandler.splice(i,1); console.log('deregistered id '+id);}
+	else console.log('touchhandler.deregister: invalid id '+id);
+};
+touchhandler.update = function (id,x,y,ccw) {
+	var x0 = touchhandler['touch'+id][0];
+	var y0 = touchhandler['touch'+id][1];
+	x -= 0.5; y -= 0.5;
+	if (Math.max(Math.abs(x-Math.round(x)),Math.abs(y-Math.round(y))) < 0.4)
+	{ // XXX change this threshold to something based on Manhattan distance from x0,y0
+		x = Math.round(x); y = Math.round(y);
+		touchhandler['touch'+id] = [x,y];
+		//console.log('updated id '+id+' from '+[x0,y0]+' to '+[x,y]);
+		var sign = ccw ? -1 : 1;
+		var dx = sign*(x-x0), dy = sign*(y-y0);
+		if (dx === 0 && Math.abs(dy) === 1)
+		{
+			if (x-dy < 0 || x-dy > 3) move(Math.min(x,x+dy),Math.min(y,y0),!ccw);
+			else move(Math.min(x,x-dy),Math.min(y,y0),ccw);
+			redraw();
+		}
+		else if (dy === 0 && Math.abs(dx) === 1)
+		{
+			if (y+dx < 0 || y+dx > 3) move(Math.min(x,x0),Math.min(y,y-dx),!ccw);
+			else move(Math.min(x,x0),Math.min(y,y+dx),ccw);
+			redraw();
+		}
+		//XXX maybe handle the case where dx,dy = 0,+-2 or +-2,0 too
+	}
+};
+
+
+function touch(e)
+{
+e.preventDefault();//always swallow touch events... though this might not be a good idea in general?
+var bcr = B.getBoundingClientRect();
+var unit = 2*parseInt(getComputedStyle(B).fontSize);
+var changedTouches = e.changedTouches;
+/* the touch events spec http://www.w3.org/TR/touch-events/#attributes-2 says that the
+changedTouches list has only the changed touches corresponding to the currently-firing event. */
+if (!touch_enabled || size !== 4)
+{
+/* only use fancy touch input when size=4, otherwise emulate mouse input */
+if (e.type !== 'touchstart') return;
+[].forEach.call(changedTouches,function (touch) {
+click({clientX: touch.clientX,
+       clientY: touch.clientY,
+       shiftKey: e.shiftKey, // something that has both a keyboard and a touchscreen? why not just use keyboard input, durr
+       preventDefault: function () {},
+       type: 'click'});
+}); // dispatch a "fake" click event
+return;
+}
+[].forEach.call(changedTouches,function (touch) {
+var x = touch.clientX-bcr.left, y = touch.clientY-bcr.top;
+x /= unit; y /= unit;
+switch (e.type)
+{
+case 'touchstart': touchhandler.register(touch.identifier,x,y); break;
+case 'touchend': case 'touchcancel': touchhandler.deregister(touch.identifier); break;
+case 'touchmove': touchhandler.update(touch.identifier,x,y,e.shiftKey); break;
+}
+});
+}
+
+function touchemu(e)
+{
+if (!mouse_enabled || !touch_enabled || size !== 4) return;
+e.preventDefault();
+var bcr = B.getBoundingClientRect();
+var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
+var unit = 2*parseInt(getComputedStyle(B).fontSize);
+x /= unit; y /= unit;
+switch (e.type)
+{
+case 'mousedown': touchhandler.register(0,x,y); break;
+case 'mouseup': touchhandler.deregister(0); break;
+case 'mousemove': if (touchhandler.length > 0) touchhandler.update(0,x,y,e.shiftKey); break;
+case 'mouseout': if (touchhandler.length > 0) touchhandler.deregister(0); break;
+}
 }
 
 function key(e)
@@ -233,6 +346,9 @@ redraw();
 }
 
 init();
+
+// [15,14,6,5,11,14,15,5,6,2] gives a pair of 2-cycles on size>=6, might be useful
+// [15,14,6,5,11,14,15,5,6,2,2,6,6,6,6,6,7,7,7,7,7,11,15,14,6,5,11,14,15,5,6,2,2,16,16,16,16,16,15,15,15,15,15,11] rotates two pieces for size=6
 </script>
 </body>
 </html>

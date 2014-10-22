@@ -302,6 +302,7 @@ return;
 [].forEach.call(changedTouches,function (touch) {
 var x = touch.clientX-bcr.left, y = touch.clientY-bcr.top;
 x /= unit; y /= unit;
+if (x < 0 || x > 4 || y < 0 || y > 0) return;
 switch (e.type)
 {
 case 'touchstart': touchhandler.register(touch.identifier,x,y); break;

@@ -89,153 +89,162 @@ var touch_enabled = true;
 var orient_enabled = true; // this only controls whether the orientation is visible (and the autosolver)
 
 if (!window.count) window.count = function (n) {
-var a = [];
-for (var i = 0; i < n; i++) a[i] = i;
-return a;
+	var a = [];
+	for (var i = 0; i < n; i++) a[i] = i;
+	return a;
 }; // this should be loaded with the solver but in case we're on a lame browser that doesn't load that script correctly...
 
 function init()
 {
-if (size < 4) {console.log('size='+size+' too small'); size = Math.sqrt(state.length); return;}
-var n = divs.length;
-state = count(size*size);
-state_o = state.map(function () {return 0;});
-var labels = size*size <= 25 ? 'abcdefghijklmnopqrstuvwxy' : size*size === 36 ? '0123456789abcdefghijklmnopqrstuvwxyz' : state;
-while (n < size*size)
-{
-var div = document.createElement('div');
-div.className = 'piece';
-//div.textContent = labels[n];
-B.appendChild(div);
-divs.push(div);
-n++;
-}
-while (n > size*size)
-{
-B.removeChild(divs.pop());
-n--;
-}
-for (var i = 0; i < n; i++)
-{
-divs[i].textContent = labels[i];
-divs[i].dataset.sessile = '' + (i%size >= 3 && i%size < size-3 && i >= 3*size && i < (size-3)*size);
-}
-redraw();
-if(B.querySelector('button.interface') === null)
-{
-I = document.createElement('button');
-I.className = 'interface';
-B.appendChild(I);
-I.addEventListener('click',click,false);
-I.addEventListener('contextmenu',click,false);
-//I.addEventListener('dblclick',function (e) {e.preventDefault();},false);
-I.addEventListener('touchstart',touch,false);
-I.addEventListener('touchend',touch,false);
-I.addEventListener('touchmove',touch,false);
-I.addEventListener('touchcancel',touch,false);
-I.addEventListener('mousedown',touchemu,false);//touch emulation handlers
-I.addEventListener('mouseup',touchemu,false);
-I.addEventListener('mousemove',touchemu,false);
-I.addEventListener('mouseout',touchemu,false);
-I.addEventListener('keydown',key,false);
-}
-I.focus();
-B.style.width = B.style.height = 2*size+'em';
+	if (size < 4) {console.log('size='+size+' too small'); size = Math.sqrt(state.length); return;}
+	var n = divs.length;
+	state = count(size*size);
+	state_o = state.map(function () {return 0;});
+	var labels = size*size <= 25 ? 'abcdefghijklmnopqrstuvwxy' : size*size === 36 ? '0123456789abcdefghijklmnopqrstuvwxyz' : state;
+	while (n < size*size)
+	{
+		var div = document.createElement('div');
+		div.className = 'piece';
+		//div.textContent = labels[n];
+		B.appendChild(div);
+		divs.push(div);
+		n++;
+	}
+	while (n > size*size)
+	{
+		B.removeChild(divs.pop());
+		n--;
+	}
+	for (var i = 0; i < n; i++)
+	{
+		divs[i].textContent = labels[i];
+		divs[i].dataset.sessile = '' + (i%size >= 3 && i%size < size-3 && i >= 3*size && i < (size-3)*size);
+	}
+	redraw();
+	if(B.querySelector('button.interface') === null)
+	{
+		I = document.createElement('button');
+		I.className = 'interface';
+		B.appendChild(I);
+		I.addEventListener('click',click,false);
+		I.addEventListener('contextmenu',click,false);
+		//I.addEventListener('dblclick',function (e) {e.preventDefault();},false);
+		I.addEventListener('touchstart',touch,false);
+		I.addEventListener('touchend',touch,false);
+		I.addEventListener('touchmove',touch,false);
+		I.addEventListener('touchcancel',touch,false);
+		I.addEventListener('mousedown',touchemu,false);//touch emulation handlers
+		I.addEventListener('mouseup',touchemu,false);
+		I.addEventListener('mousemove',touchemu,false);
+		I.addEventListener('mouseout',touchemu,false);
+		I.addEventListener('keydown',key,false);
+	}
+	I.focus();
+	B.style.width = B.style.height = 2*size+'em';
 }
 
 function scramble()
 {
-state = count(size*size);
-var indices = state.filter(function (n) {var x = n%size, y = (n-x)/size; return x < 3 || size-x <= 3 || y < 3 || size-y <= 3; });
-for (var i = 1; i < indices.length; i++)
-{
-var r = Math.floor(Math.random()*(i+1));
-state[indices[i]] = state[indices[r]];
-state[indices[r]] = indices[i];
-}
-if (orient_enabled && size > 6) console.log('note: scrambling for oriented mode not yet proven to be solvable for size > 6');
-function parity(n) {var x = n%size; return x+(n-x)/size;}
-var s = 0;
-for (var i = 0; i < indices.length; i++)
-{
-var j = indices[i], k = state[j];
-if (i < indices.length-1) {state_o[k] = (parity(j) + parity(k) + 2*Math.floor(Math.random()*(2*size-6)))%(4*size-12); s += state_o[k];}
-else {state_o[k] = ((-s)%(4*size-12)+4*size-12)%(4*size-12);}
-}
+	state = count(size*size);
+	var indices = state.filter(function (n) {var x = n%size, y = (n-x)/size; return x < 3 || size-x <= 3 || y < 3 || size-y <= 3; });
+	for (var i = 1; i < indices.length; i++)
+	{
+		var r = Math.floor(Math.random()*(i+1));
+		state[indices[i]] = state[indices[r]];
+		state[indices[r]] = indices[i];
+	}
+	if (orient_enabled && size > 6) console.log('note: scrambling for oriented mode not yet proven to be solvable for size > 6');
+	function parity(n) {var x = n%size; return x+(n-x)/size;}
+	var s = 0;
+	for (var i = 0; i < indices.length; i++)
+	{
+		var j = indices[i], k = state[j];
+		if (i < indices.length-1)
+		{
+			state_o[k] = (parity(j) + parity(k) + 2*Math.floor(Math.random()*(2*size-6)))%(4*size-12);
+			s += state_o[k];
+		}
+		else {state_o[k] = ((-s)%(4*size-12)+4*size-12)%(4*size-12);}
+	}
 }
 
 function redraw()
 {
-for (var i = 0; i < size; i++) for (var j = 0; j < size; j++)
-{
-var x = state[i+j*size]%size, y = (state[i+j*size]-x)/size;
-divs[x+y*size].style.left = i*2+'em';
-divs[x+y*size].style.top  = j*2+'em';
-var angle = (state_o[x+y*size]/(4*size-12))*6.283185307179586, c = Math.cos(angle).toFixed(4), s = Math.sin(angle).toFixed(4);
-// this needs to be rounded because Chrome is dumb and doesn't support scientific notation in CSS
-var transform = (navigator.userAgent.indexOf('AppleWebKit') > 0) ? 'matrix('+[c,s,-s,c,0,0]+')' : ('rotate('+(state_o[x+y*size]*90/(size-3))+'deg)');
-// Chrome is also the only browser that currently handles matrix interpolation correctly :V
-// (and of course there's no way to check if a browser does this correctly short of actually trying
-// to animate it and monitoring with checkComputedStyle but holy shit that sounds like effort;
-// web dev sucks forever)
-divs[x+y*size].style.transform = orient_enabled ? transform : '';
-divs[x+y*size].dataset.correct = (i === x && j === y)*(1+ +(state_o[x+y*size]%(4*size-12) === 0 || !orient_enabled));
-}
+	for (var i = 0; i < size; i++) for (var j = 0; j < size; j++)
+	{
+		var x = state[i+j*size]%size, y = (state[i+j*size]-x)/size;
+		divs[x+y*size].style.left = i*2+'em';
+		divs[x+y*size].style.top  = j*2+'em';
+		var angle = (state_o[x+y*size]/(4*size-12))*6.283185307179586;
+		var c = Math.cos(angle).toFixed(4), s = Math.sin(angle).toFixed(4);
+		// this needs to be rounded because Chrome is dumb and doesn't support scientific
+		// notation in CSS
+		var transform = (navigator.userAgent.indexOf('AppleWebKit') > 0) ?
+			'matrix('+[c,s,-s,c,0,0]+')' : 
+			('rotate('+(state_o[x+y*size]*90/(size-3))+'deg)');
+		/* Chrome is also the only browser that currently handles matrix interpolation
+		correctly :V (and of course there's no way to check if a browser does this correctly
+		short of actually trying to animate it and monitoring with checkComputedStyle but
+		holy shit that sounds like effort; web dev sucks forever) */
+		divs[x+y*size].style.transform = orient_enabled ? transform : '';
+		divs[x+y*size].dataset.correct = (i === x && j === y)*(1+ +(state_o[x+y*size]%(4*size-12) === 0 || !orient_enabled));
+	}
 }
 
 function move(x,y,ccw)
 {
-var i = x+size*y;
-var t = state[i];
-for (var j = 0; j < 4; j++)
-{
-var d = [size,1,-size,-1][j^ccw];
-for (var k = 0; k < size-3; k++)
-{
-state_o[state[i]] += ccw ? -1 : 1;
-state[i] = state[i+d];
-i += d;
-}
-}
-state[i-d] = t;
+	var i = x+size*y;
+	var t = state[i];
+	for (var j = 0; j < 4; j++)
+	{
+		var d = [size,1,-size,-1][j^ccw];
+		for (var k = 0; k < size-3; k++)
+		{
+			state_o[state[i]] += ccw ? -1 : 1;
+			state[i] = state[i+d];
+			i += d;
+		}
+	}
+	state[i-d] = t;
 }
 
 function autoplay(delay)
 {
-if (autoqueue.length === 0) return;
-else
-{
-var m = autoqueue.shift();
-var x = m%3, y = (m-x)/3%3, ccw = Math.floor(m/9);
-move(x,y,ccw);
-redraw();
-setTimeout(autoplay.bind(undefined,delay),delay || 200);
-}
+	if (autoqueue.length === 0) return;
+	else
+	{
+		var m = autoqueue.shift();
+		var x = m%3, y = (m-x)/3%3, ccw = Math.floor(m/9);
+		move(x,y,ccw);
+		redraw();
+		setTimeout(autoplay.bind(undefined,delay),delay || 200);
+	}
 }
 
 var autoqueue = [];
 
 function autosolve()
 {
-if (autoqueue.length !== 0) {autoqueue = []; return;}
-if (size === 4) autoqueue = solve4c(unconvert_state([state,state_o]),orient_enabled);
-else if (size === 5 && !orient_enabled) autoqueue = solve5a(state);
-autoqueue = simplify_move_sequence(autoqueue,4*size-12);
+	if (autoqueue.length !== 0) {autoqueue = []; return;}
+	if (size === 4) autoqueue = solve4c(unconvert_state([state,state_o]),orient_enabled);
+	else if (size === 5 && !orient_enabled) autoqueue = solve5a(state);
+	autoqueue = simplify_move_sequence(autoqueue,4*size-12);
 }
 
 function click(e)
 {
-if (!mouse_enabled) return;
-if (touch_enabled && size === 4) return; // defer to touch emulation (bound to mouseup/down/move)
-e.preventDefault();
-var bcr = B.getBoundingClientRect();
-var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
-var unit = 2*parseInt(getComputedStyle(B).fontSize);
-x /= unit; y /= unit;
-x -= (size-3)/2; y -= (size-3)/2;
-if (x < 0 || x >= 3 || y < 0 || y >= 3) return false;
-move(Math.floor(x),Math.floor(y),e.shiftKey^(e.type === 'contextmenu'));
-redraw();
+	if (!mouse_enabled) return;
+	if (touch_enabled && size === 4) return;
+	// defer to touch emulation (bound to mouseup/down/move)
+	e.preventDefault();
+	var bcr = B.getBoundingClientRect();
+	var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
+	var unit = 2*parseInt(getComputedStyle(B).fontSize);
+	x /= unit; y /= unit;
+	x -= (size-3)/2; y -= (size-3)/2;
+	if (x < 0 || x >= 3 || y < 0 || y >= 3) return false;
+	move(Math.floor(x),Math.floor(y),e.shiftKey^(e.type === 'contextmenu'));
+	redraw();
 }
 
 var touchhandler = [];
@@ -280,70 +289,79 @@ touchhandler.update = function (id,x,y,ccw) {
 
 function touch(e)
 {
-e.preventDefault();//always swallow touch events... though this might not be a good idea in general?
-var bcr = B.getBoundingClientRect();
-var unit = 2*parseInt(getComputedStyle(B).fontSize);
-var changedTouches = e.changedTouches;
-/* the touch events spec http://www.w3.org/TR/touch-events/#attributes-2 says that the
-changedTouches list has only the changed touches corresponding to the currently-firing event. */
-if (!touch_enabled || size !== 4)
-{
-/* only use fancy touch input when size=4, otherwise emulate mouse input */
-if (e.type !== 'touchstart') return;
-[].forEach.call(changedTouches,function (touch) {
-click({clientX: touch.clientX,
-       clientY: touch.clientY,
-       shiftKey: e.shiftKey, // something that has both a keyboard and a touchscreen? why not just use keyboard input, durr
-       preventDefault: function () {},
-       type: 'click'});
-}); // dispatch a "fake" click event
-return;
-}
-[].forEach.call(changedTouches,function (touch) {
-var x = touch.clientX-bcr.left, y = touch.clientY-bcr.top;
-x /= unit; y /= unit;
-if (x < 0 || x > 4 || y < 0 || y > 0) return;
-switch (e.type)
-{
-case 'touchstart': touchhandler.register(touch.identifier,x,y); break;
-case 'touchend': case 'touchcancel': touchhandler.deregister(touch.identifier); break;
-case 'touchmove': touchhandler.update(touch.identifier,x,y,e.shiftKey); break;
-}
-});
+	e.preventDefault();
+	//always swallow touch events... though this might not be a good idea in general?
+	var bcr = B.getBoundingClientRect();
+	var unit = 2*parseInt(getComputedStyle(B).fontSize);
+	var changedTouches = e.changedTouches;
+	/* the touch events spec http://www.w3.org/TR/touch-events/#attributes-2 says that the
+	changedTouches list has only the changed touches corresponding to the currently-firing
+	event. */
+	if (!touch_enabled || size !== 4)
+	{
+		/* only use fancy touch input when size=4, otherwise emulate mouse input */
+		if (e.type !== 'touchstart') return;
+		[].forEach.call(changedTouches,function (touch) {
+			click({clientX: touch.clientX,
+			       clientY: touch.clientY,
+			       shiftKey: e.shiftKey,
+			       preventDefault: function () {},
+			       type: 'click'});
+		}); // dispatch a "fake" click event
+		return;
+	}
+	[].forEach.call(changedTouches,function (touch) {
+		var x = touch.clientX-bcr.left, y = touch.clientY-bcr.top;
+		x /= unit; y /= unit;
+		if (x < 0 || x > 4 || y < 0 || y > 0) return;
+		switch (e.type)
+		{
+			case 'touchstart':
+				touchhandler.register(touch.identifier,x,y); break;
+			case 'touchend': case 'touchcancel':
+				touchhandler.deregister(touch.identifier); break;
+			case 'touchmove':
+				touchhandler.update(touch.identifier,x,y,e.shiftKey); break;
+		}
+	});
 }
 
 function touchemu(e)
 {
-if (!mouse_enabled || !touch_enabled || size !== 4) return;
-e.preventDefault();
-var bcr = B.getBoundingClientRect();
-var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
-var unit = 2*parseInt(getComputedStyle(B).fontSize);
-x /= unit; y /= unit;
-switch (e.type)
-{
-case 'mousedown': touchhandler.register(0,x,y); break;
-case 'mouseup': touchhandler.deregister(0); break;
-case 'mousemove': if (touchhandler.length > 0) touchhandler.update(0,x,y,e.shiftKey); break;
-case 'mouseout': if (touchhandler.length > 0) touchhandler.deregister(0); break;
-}
+	if (!mouse_enabled || !touch_enabled || size !== 4) return;
+	e.preventDefault();
+	var bcr = B.getBoundingClientRect();
+	var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
+	var unit = 2*parseInt(getComputedStyle(B).fontSize);
+	x /= unit; y /= unit;
+	switch (e.type)
+	{
+		case 'mousedown': touchhandler.register(0,x,y); break;
+		case 'mouseup': touchhandler.deregister(0); break;
+		case 'mousemove':
+			if (touchhandler.length > 0) touchhandler.update(0,x,y,e.shiftKey);
+			break;
+		case 'mouseout':
+			if (touchhandler.length > 0) touchhandler.deregister(0);
+			break;
+	}
 }
 
 function key(e)
 {
-var keymap={
-55:0,56:1,57:2,71:3,67:4,82:5,72:6,84:7,78:8,//dvorak
-85:3,73:4,79:5,74:6,75:7,76:8,//qwerty
-36:0,38:1,33:2,37:3,12:4,39:5,35:6,40:7,34:8,//numpad, numlock off
-103:0,104:1,105:2,100:3,101:4,102:5,97:6,98:7,99:8//numpad, numlock on
-};
-if(e.keyCode in keymap && !e.ctrlKey && !e.altKey)
-{
-e.preventDefault();
-var m=keymap[e.keyCode];
-move(m%3,(m-m%3)/3,e.shiftKey);
-redraw();
-}
+	var keymap={
+		55:0,56:1,57:2,71:3,67:4,82:5,72:6,84:7,78:8,//dvorak
+		85:3,73:4,79:5,74:6,75:7,76:8,//qwerty
+		36:0,38:1,33:2,37:3,12:4,39:5,35:6,40:7,34:8,//numpad, numlock off
+		103:0,104:1,105:2,100:3,101:4,102:5,97:6,98:7,99:8//numpad, numlock on
+	};
+	if (e.keyCode in keymap && !e.ctrlKey && !e.altKey)
+	{
+		e.preventDefault();
+		var m = keymap[e.keyCode];
+		move(m%3,(m-m%3)/3,e.shiftKey);
+		redraw();
+	}
 }
 
 init();

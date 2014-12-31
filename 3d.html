@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='UTF-8'>
+<title>3D test</title>
+<style>
+body{margin:0px;text-align:center;background-color:black;color:white;}
+div{display:inline-block;vertical-align:middle;}
+canvas{background-color:#dddddd;}
+/*halp how does css work*/
+</style>
+</head>
+<body>
+<div><canvas id='canvas'></canvas></div>
+<div>
+<label>model: <select id='modelselect'></select></label><br>
+extrinsic rotation:
+<button onmouseover='clearTimeout(timeout);rotate_timeout(AXIS_X,-Math.PI/48);' onmouseout='clearTimeout(timeout);'>x</button>
+<button onmouseover='clearTimeout(timeout);rotate_timeout(AXIS_Y,-Math.PI/48);' onmouseout='clearTimeout(timeout);'>y</button>
+<button onmouseover='clearTimeout(timeout);rotate_timeout(AXIS_Z,-Math.PI/48);' onmouseout='clearTimeout(timeout);'>z</button><br>
+intrinsic rotation:
+<button onmouseover='clearTimeout(timeout);rotate_timeout(AXIS_X,-Math.PI/48,1);' onmouseout='clearTimeout(timeout);'>x</button>
+<button onmouseover='clearTimeout(timeout);rotate_timeout(AXIS_Y,-Math.PI/48,1);' onmouseout='clearTimeout(timeout);'>y</button>
+<button onmouseover='clearTimeout(timeout);rotate_timeout(AXIS_Z,-Math.PI/48,1);' onmouseout='clearTimeout(timeout);'>z</button><br>
+<button onclick='rotation=[sign(rotation[0])||1,0,0,0];'>reset rotation</button><br>
+</div>
+<script src='3dmodels.js'></script><!--load some models and populate the <select> above-->
+<script>
+'use strict';
+
+const sin   = Math.sin
+    , cos   = Math.cos
+    , hypot = Math.hypot
+    , sign  = Math.sign;
+
+const AXIS_X = [1,0,0];
+const AXIS_Y = [0,1,0];
+const AXIS_Z = [0,0,1];
+
+// camera location
+// positive = usual perspective projection
+// negative = reverse perspective projection
+// +-inf = no perspective
+var CAM = 16;
+
+var DAMP = 0.24; // rotation damping
+
+const DRAG_Z = 1; // height for mouse events (drag/scroll)
+
+const SCALE = 2.5; // canvas ~ [-SCALE,SCALE]×[-SCALE,SCALE]
+
+
+var canvas = document.querySelector('#canvas');
+var canvas_cx = canvas.getContext('2d');
+var canvas_size = 600;
+canvas.width = canvas.height = canvas_size;
+canvas_cx.scale(canvas_size/(2*SCALE),-canvas_size/(2*SCALE));
+canvas_cx.translate(SCALE,-SCALE);
+
+var rotation = [1,0,0,0]; // rotation of the model as a quaternion
+var current_rotation = [1,0,0,0]; // interpolated rotation (for use in displaying)
+
+
+var Q = {};
+Q.mul = function mul(p,q) {
+	var a = p[0], b = p[1], c = p[2], d = p[3]
+	  , e = q[0], f = q[1], g = q[2], h = q[3];
+	/* quaternion multiplication using 9 real multiplies instead of 16
+	var A = a*e, B = b*f, C = c*g, D = d*h;
+	return [A-B-C-D
+	     , (a+b)*(e+f)+(c+d)*(h-g)-A-B+C-D
+	     , (a+c)*(e+g)+(d+b)*(f-h)-A-B-C+D
+	     , (a+d)*(e+h)+(b+c)*(g-f)-A+B-C-D];*/
+	return [ a*e - b*f - c*g - d*h
+	       , a*f + b*e + c*h - d*g
+	       , a*g + c*e + d*f - b*h
+	       , a*h + d*e + b*g - c*f ];
+};
+Q.inv = function inv(p) {
+	var sq = p[0]*p[0] + p[1]*p[1] + p[2]*p[2] + p[3]*p[3];
+	return [p[0]/sq, -p[1]/sq, -p[2]/sq, -p[3]/sq];
+};
+Q.conj = function conj(p,q) {
+	// q * p * q**-1
+	// (not directly related to the quaternion conjugate)
+	return Q.mul(Q.mul(q,p),Q.inv(q));
+};
+Q.normalise = function normalise(p) {
+	var l = hypot.apply(null,p);
+	return [p[0]/l, p[1]/l, p[2]/l, p[3]/l];
+};
+Q.fromtwovectors = function fromtwovectors(u,v) {
+	// http://web.archive.org/web/20140208024206/http://lolengine.net/blog/2013/09/18/beautiful-maths-quaternion-from-vectors
+	var norm_u_norm_v = hypot.apply(null,u) * hypot.apply(null,v);
+	var w = cross(u,v);
+	var q = [norm_u_norm_v + dot(u,v)].concat(w);
+	return Q.normalise(q);
+};
+Q.abs = function abs(p) {
+	return hypot.apply(null,p);
+};
+
+function cross(u,v)
+{
+	// cross product of two vectors
+	return [ u[1]*v[2] - u[2]*v[1]
+	       , u[2]*v[0] - u[0]*v[2]
+	       , u[0]*v[1] - u[1]*v[0] ];
+}
+
+function dot(u,v)
+{
+	// dot product of two vectors
+	return u.reduce((function (s,x,i) {return s+x*v[i];}),0);
+}
+
+function project(v,rotation)
+{
+	// input: vector
+	// do perspective projection
+	var q = Q.conj([0].concat(v),rotation);
+	var x = q[1], y = q[2], z = q[3];
+	x /= 1 - z/CAM;
+	y /= 1 - z/CAM;
+	return [x,y];
+}
+
+function project_poly(poly,rotation)
+{
+	// input: list of vectors
+	// output: flat xy-coordinate list
+	var n = poly.length;
+	var poly2d = [];
+	for (var i = 0; i < n; i++)
+	{
+		var vertex = project(poly[i],rotation);
+		poly2d[2*i  ] = vertex[0];
+		poly2d[2*i+1] = vertex[1];
+	}
+	return poly2d;
+}
+
+function calc_poly_normal(vertices)
+{
+	/* input: list of vectors
+	calculate a surface normal of a polygon
+	for a polygon with vertices a,b,…,y,z, this is a×b+b×c+…+y×z+z×a
+	equivalent to dividing the polygon into triangles and adding the
+	area-weighted surface normals. */
+	var normal = [0,0,0];
+	var n = vertices.length;
+	for (var i = 0; i < n; i++)
+	{
+		var tnormal = cross(vertices[i],vertices[(i+1)%n]);
+		normal[0] += tnormal[0];
+		normal[1] += tnormal[1];
+		normal[2] += tnormal[2];
+	}
+	return normal;
+}
+
+function calc_signed_area(vertices)
+{
+	// input: flat xy-coord list
+	// +ve for ccw-ordered vertices, -ve for cw-ordered vertices
+	// (equal to half the result of calc_poly_normal's z coord)
+	var n = vertices.length;
+	var area = 0;
+	for (var i = 0; i < n; i += 2)
+	{
+		area += vertices[i  ]*vertices[(i+3)%n]
+		area -= vertices[i+1]*vertices[(i+2)%n];
+	}
+	return area/2;
+}
+
+function draw_poly_2d(vertices,colour)
+{
+	// input: flat xy-coordinate list
+	var n = vertices.length;
+	if (n % 2 !== 0 || n < 4) throw 'invalid polygon';
+	canvas_cx.fillStyle = colour;
+	canvas_cx.beginPath();
+	canvas_cx.moveTo(vertices[0],vertices[1]);
+	for (var i = 2; i < n; i += 2)
+	{
+		canvas_cx.lineTo(vertices[i],vertices[i+1]);
+	}
+	canvas_cx.fill();
+	canvas_cx.closePath();
+}
+
+function stroke_poly_2d(vertices)
+{
+	// input: flat xy-coordinate list
+	var n = vertices.length;
+	if (n % 2 !== 0 || n < 4) throw 'invalid polygon';
+	canvas_cx.beginPath();
+	canvas_cx.moveTo(vertices[0],vertices[1]);
+	for (var i = 2; i < n; i += 2)
+	{
+		canvas_cx.lineTo(vertices[i],vertices[i+1]);
+	}
+	canvas_cx.stroke();
+	canvas_cx.closePath();
+}
+
+function draw_poly_3d(vertices,colour,rotation)
+{
+	// input: list of vectors
+	var n = vertices.length;
+	if (n < 2) throw 'invalid polygon';
+	canvas_cx.fillStyle = colour;
+	var point = project(vertices[0],rotation);
+	canvas_cx.beginPath();
+	canvas_cx.moveTo(point[0],point[1]);
+	for (var i = 1; i < n; i++)
+	{
+		point = project(vertices[i],rotation);
+		canvas_cx.lineTo(point[0],point[1]);
+	}
+	canvas_cx.fill();
+	canvas_cx.closePath();
+}
+
+function rotate(axis,angle,intr)
+{
+	// axis: vector
+	// angle: scalar
+	var l = hypot.apply(null,axis);
+	var c = cos(angle/2), s = sin(angle/2)/l;
+	if (!intr) rotation = Q.mul([c,axis[0]*s,axis[1]*s,axis[2]*s],rotation);
+	else rotation = Q.mul(rotation,[c,axis[0]*s,axis[1]*s,axis[2]*s]);
+}
+
+var timeout;
+function rotate_timeout(axis,theta,intr)
+{
+	rotate(axis,theta,intr);
+	//redraw();
+	timeout = setTimeout(function(){rotate_timeout(axis,theta,intr);},20);
+}
+
+function redraw()
+{
+	canvas_cx.clearRect(-SCALE,-SCALE,2*SCALE,2*SCALE);
+	var polycount = polygons.length;
+	var projected = polygons.map(function (poly) {return project_poly(poly,current_rotation);});
+	//var normals = polygons.map(calc_poly_normal);
+	var normals = projected.map(calc_signed_area);
+	/* draw the "invisible" polygons first, then layer the visible ones over
+	them. the invisible polygons might not be entirely invisible due to alpha
+	blending or whatever. */
+	canvas_cx.lineWidth = 10/canvas_size;
+	canvas_cx.lineJoin = 'round';
+	canvas_cx.strokeStyle = 'white';
+	for (var i = 0; i < polycount; i++) if (normals[i] <= 0)
+	{
+		draw_poly_2d(projected[i],colours[i],current_rotation);
+	}
+	for (var i = 0; i < polycount; i++) if (normals[i] <= 0)
+	{
+		stroke_poly_2d(projected[i],colours[i],current_rotation);
+	}
+	for (i = 0; i < polycount; i++) if (normals[i] > 0)
+	{
+		draw_poly_2d(projected[i],colours[i],current_rotation);
+	}
+	for (var i = 0; i < polycount; i++) if (normals[i] > 0)
+	{
+		stroke_poly_2d(projected[i],colours[i],current_rotation);
+	}
+}
+
+function run_update_loop()
+{
+	var u = rotation, v = current_rotation;
+	var delta_rotation = [u[0]-v[0],u[1]-v[1],u[2]-v[2],u[3]-v[3]];
+	var length = Q.abs(delta_rotation);
+	if (length !== 0)
+	{
+		if (length > 0.0001)
+		{
+			current_rotation[0] += delta_rotation[0] * DAMP;
+			current_rotation[1] += delta_rotation[1] * DAMP;
+			current_rotation[2] += delta_rotation[2] * DAMP;
+			current_rotation[3] += delta_rotation[3] * DAMP;
+			if (Q.abs(current_rotation) < 0.01) current_rotation = rotation.slice();
+			// it's already normalised when conjugating with the polygons'
+			// vertices, so it doesn't matter that current_rotation might
+			// not have unit norm (except in pathological cases).
+		}
+		else current_rotation = rotation.slice();
+		redraw();
+	}
+	setTimeout(run_update_loop,20);
+}
+
+function draghandler(e)
+{
+	//console.log(e.type);
+	e.preventDefault();
+	var bcr = canvas.getBoundingClientRect();
+	var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
+	x = x/canvas_size * (2*SCALE) - SCALE;
+	y = SCALE - y/canvas_size * (2*SCALE);
+	switch (e.type)
+	{
+		case 'mousedown':
+			if (draghandler.active)
+			{
+				console.log('dragging already active doushio');
+				break;
+			}
+			draghandler.active = true;
+			draghandler.last = [x,y,DRAG_Z];
+			break;
+		case 'mousemove':
+			if (!draghandler.active) break;
+			var q = Q.fromtwovectors(draghandler.last,[x,y,DRAG_Z]);
+			rotation = Q.mul(q,rotation);
+			draghandler.last = [x,y,DRAG_Z];
+			break;
+		case 'mouseup':
+		case 'mouseout':
+			draghandler.active = false;
+			break;
+	}
+}
+draghandler.active = false;
+canvas.addEventListener('mousedown',draghandler,false);
+canvas.addEventListener('mouseup',draghandler,false);
+canvas.addEventListener('mousemove',draghandler,false);
+canvas.addEventListener('mouseout',draghandler,false);
+//using the drag* events only ever fires dragstart for some reason, so durr
+
+function wheelhandler(e)
+{
+	e.preventDefault();
+	var bcr = canvas.getBoundingClientRect();
+	var x = e.clientX-bcr.left, y = e.clientY-bcr.top;
+	x = x/canvas_size * (2*SCALE) - SCALE;
+	y = SCALE - y/canvas_size * (2*SCALE);
+	var amount = (e.deltaMode === 0) ? e.deltaY / canvas_size : (sign(e.deltaY)*Math.PI/12);
+	rotate([x,y,DRAG_Z],amount);
+}
+canvas.addEventListener('wheel',wheelhandler,false);
+
+
+
+redraw();
+run_update_loop();
+</script>
+</body>
+</html>

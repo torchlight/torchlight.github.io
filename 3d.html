@@ -201,6 +201,7 @@ function stroke_poly_2d(vertices)
 	{
 		canvas_cx.lineTo(vertices[i],vertices[i+1]);
 	}
+	canvas_cx.lineTo(vertices[0],vertices[1]);
 	canvas_cx.stroke();
 	canvas_cx.closePath();
 }

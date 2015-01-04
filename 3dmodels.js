@@ -22,8 +22,9 @@ function random_colour_list(n)
 	return a;
 }
 
-function heat_colour(x)
+function heat_colour(x,transparent_zero)
 {
+	if (transparent_zero === true && x == 0) return 'rgba(0,0,0,0.6)';
 	x = Math.sign(x)*Math.pow(Math.abs(x),0.5); // looks nicer with some compression
 	var r = 0, g = 0, b = 0;
 	if (x < 0) r = -255*x;
@@ -46,14 +47,14 @@ function append_invert(polygons)
 	}
 }
 
-var testcube = [ [[-1,-1, 1],[ 1,-1, 1],[ 1, 1, 1],[-1, 1, 1]] // top
-               , [[-1,-1,-1],[-1, 1,-1],[ 1, 1,-1],[ 1,-1,-1]] // bottom
-               , [[-1,-1,-1],[ 1,-1,-1],[ 1,-1, 1],[-1,-1, 1]] // front
-               , [[ 1,-1,-1],[ 1, 1,-1],[ 1, 1, 1],[ 1,-1, 1]] // right
-               , [[-1, 1,-1],[-1, 1, 1],[ 1, 1, 1],[ 1, 1,-1]] // back
-               , [[-1,-1,-1],[-1,-1, 1],[-1, 1, 1],[-1, 1,-1]] // left
-               ];
-var testcube_colours = ['rgba(0,0,0,0.95)','rgba(255,255,0,0.9)','rgba(0,204,0,0.9)','rgba(255,0,0,0.9)','rgba(0,0,255,0.9)','rgba(255,153,0,0.9)'];
+var cube = [ [[-1,-1, 1],[ 1,-1, 1],[ 1, 1, 1],[-1, 1, 1]] // top
+           , [[-1,-1,-1],[-1, 1,-1],[ 1, 1,-1],[ 1,-1,-1]] // bottom
+           , [[-1,-1,-1],[ 1,-1,-1],[ 1,-1, 1],[-1,-1, 1]] // front
+           , [[ 1,-1,-1],[ 1, 1,-1],[ 1, 1, 1],[ 1,-1, 1]] // right
+           , [[-1, 1,-1],[-1, 1, 1],[ 1, 1, 1],[ 1, 1,-1]] // back
+           , [[-1,-1,-1],[-1,-1, 1],[-1, 1, 1],[-1, 1,-1]] // left
+           ];
+var cube_colours = ['rgba(0,0,0,0.95)','rgba(255,255,0,0.9)','rgba(0,204,0,0.9)','rgba(255,0,0,0.9)','rgba(0,0,255,0.9)','rgba(255,153,0,0.9)'];
 
 var rhombicdodeca = [ [[0,0,2],[1,1,1],[0,2,0],[-1,1,1]]
                     , [[0,0,2],[1,-1,1],[2,0,0],[1,1,1]]
@@ -73,8 +74,6 @@ var dodeca = [ [[-1,-1,1],[0,-f,1/f],[1,-1,1],[1/f,0,f],[-1/f,0,f]]
              , [[-1,-1,1],[-1/f,0,f],[-1,1,1],[-f,1/f,0],[-f,-1/f,0]]
              ];
 append_invert(dodeca);
-
-var random_colours_12 = random_colour_list(12);
 
 var dodeca_eigcolours = [
 [-3.31703321e-03,-3.52951071e-01,1.27935652e-01,1.51313910e-01,-3.67399629e-01,4.48518250e-01,-4.48518250e-01,3.67399629e-01,-1.51313910e-01,-1.27935652e-01,3.52951071e-01,3.31703321e-03],
@@ -109,10 +108,36 @@ var rhombicdodeca_eigcolours = [
 // these are the eigenvectors of the adjacency matrices of the icosahedron and
 // cuboctahedron graphs, respectively.
 
+var cube_eigcolours = [ // udfrbl
+[0.70710678118654752,-0.70710678118654752,0,0,0,0],
+[0,0,0.70710678118654752,0,-0.70710678118654752,0],
+[0,0,0,0.70710678118654752,0,-0.70710678118654752],
+[0,0,0.25,-0.25,0.25,-0.25],
+[0.57735026918962576,0.57735026918962576,-0.28867513459481288,-0.28867513459481288,-0.28867513459481288,-0.28867513459481288]
+].map(function (a) {return a.map(function (x) {return heat_colour(x,true);});});
+
+var octahedron = [ [[0,0,1.5],[   0, 1.5,0],[-1.5,   0,0]]
+                 , [[0,0,1.5],[ 1.5,   0,0],[   0, 1.5,0]]
+                 , [[0,0,1.5],[-1.5,   0,0],[   0,-1.5,0]]
+                 , [[0,0,1.5],[   0,-1.5,0],[ 1.5,   0,0]]
+                 ];
+append_invert(octahedron);
+
+var s = Math.sqrt(1/8);
+var octahedron_eigcolours = [ [s,-s,-s,s,-s,s,s,-s]
+                            , [s,s,-s,-s,-s,-s,s,s]
+                            , [-s,s,-s,s,s,-s,s,-s]
+                            , [-s,s,s,-s,-s,s,s,-s]
+                            , [-s,s,-s,s,-s,s,-s,s]
+                            , [s,s,-s,-s,s,s,-s,-s]
+                            , [s,s,s,s,-s,-s,-s,-s]
+                            ].map(function (a) {return a.map(heat_colour);});
+
 var models = [];
-models.push({name:'test cube', polygons:testcube, colours:testcube_colours});
-models.push({name:'rhombic dodecahedron (random colours)', polygons:rhombicdodeca, colours:random_colours_12});
-models.push({name:'dodecahedron (random colours)', polygons:dodeca, colours:random_colours_12});
+models.push({name:'cube', polygons:cube, colours:cube_colours});
+models.push({name:'rhombic dodecahedron (random colours)', polygons:rhombicdodeca, colours:random_colour_list(12)});
+models.push({name:'dodecahedron (random colours)', polygons:dodeca, colours:random_colour_list(12)});
+models.push({name:'octahedron (random colours)', polygons:octahedron, colours:random_colour_list(8)});
 
 models.push({name:'dodecahedron \u03b1 1', polygons:dodeca, colours:dodeca_eigcolours[0]});
 models.push({name:'dodecahedron \u03b1 2', polygons:dodeca, colours:dodeca_eigcolours[1]});
@@ -138,6 +163,13 @@ models.push({name:'rhombic dodecahedron \u03b3 1', polygons:rhombicdodeca, colou
 models.push({name:'rhombic dodecahedron \u03b3 2', polygons:rhombicdodeca, colours:rhombicdodeca_eigcolours[9]});
 models.push({name:'rhombic dodecahedron \u03b3 3', polygons:rhombicdodeca, colours:rhombicdodeca_eigcolours[10]});
 
+models.push({name:'cube \u03b1 (multiplicity 3)', polygons:cube, colours:cube_eigcolours[0]});
+models.push({name:'cube \u03b2 1', polygons:cube, colours:cube_eigcolours[3]});
+models.push({name:'cube \u03b2 2', polygons:cube, colours:cube_eigcolours[4]});
+
+models.push({name:'octahedron \u03b1', polygons:octahedron, colours:octahedron_eigcolours[0]});
+models.push({name:'octahedron \u03b2 (multiplicity 3)', polygons:octahedron, colours:octahedron_eigcolours[3]});
+models.push({name:'octahedron \u03b3 (multiplicity 3)', polygons:octahedron, colours:octahedron_eigcolours[6]});
 
 
 // this should probably be moved to the main file

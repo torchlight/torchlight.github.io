@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='utf-8'>
+<title>Arrows</title>
+<style>
+html {background-color:black;color:#eee;}
+#frame {font-size:60px;width:8em;height:8em;background-color:#111;margin:auto;position:relative;overflow:hidden;}
+.subframe {width:4em;height:4em;position:absolute;}
+.box {width:1.2em;height:1.2em;line-height:1.2em;text-align:center;border-radius:30%;position:absolute;transform:translate(-50%,-50%);animation-duration:1.5s;animation-iteration-count:infinite;animation-timing-function:linear;}
+.up {background-color:hsl(15,100%,40%);left:25%;animation-name:up;}
+.down {background-color:hsl(345,100%,40%);left:75%;animation-name:down;}
+.left {background-color:hsl(270,100%,40%);top:25%;animation-name:left;}
+.right {background-color:hsl(210,100%,40%);top:75%;animation-name:right;}
+@keyframes up
+{
+	0% {top:125%;}
+	100% {top:25%;}
+}
+@keyframes down
+{
+	0% {top:75%;}
+	100% {top:175%;}
+}
+@keyframes left
+{
+	0% {left:175%;}
+	100% {left:75%;}
+}
+@keyframes right
+{
+	0% {left:25%;}
+	100% {left:125%;}
+}
+</style>
+</head>
+<body>
+<div id='frame'>
+<div class='subframe' style='top:-50%;left:  0%;'><div class='box up'>↑</div><div class='box down'>↓</div></div>
+<div class='subframe' style='top:-50%;left: 50%;'><div class='box up'>↑</div><div class='box down'>↓</div></div>
+<div class='subframe' style='top:  0%;left:  0%;'><div class='box up'>↑</div><div class='box down'>↓</div><div class='box left'>←</div><div class='box right'>→</div></div>
+<div class='subframe' style='top:  0%;left: 50%;'><div class='box up'>↑</div><div class='box down'>↓</div><div class='box left'>←</div><div class='box right'>→</div></div>
+<div class='subframe' style='top: 50%;left:  0%;'><div class='box up'>↑</div><div class='box down'>↓</div><div class='box left'>←</div><div class='box right'>→</div></div>
+<div class='subframe' style='top: 50%;left: 50%;'><div class='box up'>↑</div><div class='box down'>↓</div><div class='box left'>←</div><div class='box right'>→</div></div>
+<div class='subframe' style='top:  0%;left:-50%;'><div class='box left'>←</div><div class='box right'>→</div></div>
+<div class='subframe' style='top: 50%;left:-50%;'><div class='box left'>←</div><div class='box right'>→</div></div>
+</div>
+</body>
+</html>

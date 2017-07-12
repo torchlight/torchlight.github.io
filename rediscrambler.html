@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<title>barebones redi scramble generator</title>
+</head>
+<body>
+<textarea id='derp' readonly style='width:45em;height:30em;'></textarea><br>
+<button onclick='fillderp()'>generate</button>
+<button onclick='fillderpmulti(20)'>generate 20</button><br>
+<p>Note: Works on both Chrome and Firefox, but is somewhat faster with Chrome. Should work with other modern web browsers too.</p>
+<script src='rediscrambler.js'></script>
+<script>
+let derp = document.querySelector('#derp');
+
+derp.value = '';
+
+function fillderp()
+{
+	derp.value = generate_scramble_sequence();
+}
+
+function fillderpmulti(n)
+{
+	let s = [];
+	for (let i = 0; i < n; i++)
+	{
+		s[i] = (i+1) + '. ' + generate_scramble_sequence();
+	}
+	derp.value = s.join('\n');
+}
+</script>
+</body>
+</html>

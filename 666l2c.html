@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>6×6×6 L2C scramble generator</title>
+<style>
+.template {line-height: 0.5em;}
+.template .cell
+{
+	display: inline-block;
+	width: 1em;
+	height: 1em;
+	background-color: gray;
+}
+</style>
+</head>
+<body>
+<textarea id='derp' readonly style='width:42em;height:24em;'></textarea><br>
+<button onclick='document.querySelector("derp").value=""'>clear</button>
+<button onclick='fillderp()'>generate</button>
+<button onclick='fillderpmulti(5)'>generate 5</button>
+<button onclick='fillderpmulti(20)'>generate 20</button><br>
+<button onclick='document.querySelector(".template").style.display="block"'>show template editor</button>
+<button onclick='document.querySelector(".template").style.display="none"'>hide template editor</button><br>
+<label>template preset: <select onchange='set_template_preset(this.value);' id='templateselect'></select></label><br>
+<div class='template'>
+<div class='cell' tabindex='0' id='cell3_0'></div><div class='cell' tabindex='0' id='cell1_0'></div><div class='cell' tabindex='0' id='cell2_1'></div><div class='cell' tabindex='0' id='cell3_1'></div><br>
+<div class='cell' tabindex='0' id='cell2_0'></div><div class='cell' tabindex='0' id='cell0_0'></div><div class='cell' tabindex='0' id='cell0_1'></div><div class='cell' tabindex='0' id='cell1_1'></div> <br>
+<div class='cell' tabindex='0' id='cell1_3'></div><div class='cell' tabindex='0' id='cell0_3'></div><div class='cell' tabindex='0' id='cell0_2'></div><div class='cell' tabindex='0' id='cell2_2'></div><br>
+<div class='cell' tabindex='0' id='cell3_3'></div><div class='cell' tabindex='0' id='cell2_3'></div><div class='cell' tabindex='0' id='cell1_2'></div><div class='cell' tabindex='0' id='cell3_2'></div><br>
+<br>
+<div class='cell' tabindex='0' id='cell3_4'></div><div class='cell' tabindex='0' id='cell1_4'></div><div class='cell' tabindex='0' id='cell2_5'></div><div class='cell' tabindex='0' id='cell3_5'></div><br>
+<div class='cell' tabindex='0' id='cell2_4'></div><div class='cell' tabindex='0' id='cell0_4'></div><div class='cell' tabindex='0' id='cell0_5'></div><div class='cell' tabindex='0' id='cell1_5'></div><br>
+<div class='cell' tabindex='0' id='cell1_7'></div><div class='cell' tabindex='0' id='cell0_7'></div><div class='cell' tabindex='0' id='cell0_6'></div><div class='cell' tabindex='0' id='cell2_6'></div><br>
+<div class='cell' tabindex='0' id='cell3_7'></div><div class='cell' tabindex='0' id='cell2_7'></div><div class='cell' tabindex='0' id='cell1_6'></div><div class='cell' tabindex='0' id='cell3_6'></div>
+</div>
+<p>Note: This uses SiGN notation. Also, it's currently pretty slow.</p>
+<script src='666l2c.js'></script>
+<script>
+'use strict';
+let derp = document.querySelector('#derp');
+let template_el = document.querySelector('.template');
+let templateselect_el = document.querySelector('#templateselect');
+
+derp.value = '';
+
+let template_preset_array = [
+{name: 'blank', template: [Array(8).fill(2), Array(8).fill(2), Array(8).fill(2), Array(8).fill(2)]},
+{name: '1×4 outer', template: [[2, 2, 2, 2, 2, 2, 2, 2], [2, 2, 2, 2, 2, 2, 2, 1], [2, 2, 2, 2, 1, 2, 2, 2], [2, 2, 2, 2, 1, 2, 2, 1]]},
+{name: '1×4 inner', template: [[2, 2, 2, 2, 1, 2, 2, 1], [2, 2, 2, 2, 1, 2, 2, 2], [2, 2, 2, 2, 2, 2, 2, 1], [2, 2, 2, 2, 2, 2, 2, 2]]},
+{name: '2×4 left', template: [[2, 2, 2, 2, 1, 2, 2, 1], [2, 2, 2, 2, 1, 2, 2, 1], [2, 2, 2, 2, 1, 2, 2, 1], [2, 2, 2, 2, 1, 2, 2, 1]]},
+{name: '2×4 middle', template: [[2, 2, 2, 2, 1, 1, 1, 1], [2, 2, 2, 2, 1, 2, 1, 2], [2, 2, 2, 2, 2, 1, 2, 1], [2, 2, 2, 2, 2, 2, 2, 2]]},
+{name: 'outer last bar', template: [[2, 2, 2, 2, 1, 1, 1, 1], [2, 2, 2, 2, 1, 2, 1, 1], [2, 2, 2, 2, 1, 1, 2, 1], [2, 2, 2, 2, 1, 2, 2, 1]]},
+{name: 'inner last bar', template: [[2, 2, 2, 2, 1, 2, 2, 1], [2, 2, 2, 2, 1, 1, 2, 1], [2, 2, 2, 2, 1, 2, 1, 1], [2, 2, 2, 2, 1, 1, 1, 1]]},
+{name: 'custom', template: undefined},
+];
+
+let template_presets = {};
+
+for (let template_preset of template_preset_array)
+{
+	template_presets[template_preset.name] = template_preset.template;
+	let option_el = document.createElement('option');
+	option_el.value = template_preset.name;
+	option_el.textContent = template_preset.name;
+	templateselect_el.add(option_el);
+}
+
+function set_template_preset(name)
+{
+	let reftemplate = template_presets[name];
+	if (reftemplate === undefined) return;
+	for (let o = 0; o < 4; o++)
+	{
+		for (let i = 0; i < 8; i++)
+		{
+			template[o][i] = reftemplate[o][i];
+		}
+	}
+	draw_template();
+}
+
+let template = [Array(8).fill(2), Array(8).fill(2), Array(8).fill(2), Array(8).fill(2)];
+
+let colours = ['black', 'green', 'gray']; //  top, front, unspecified
+
+function draw_template()
+{
+	for (let orbit = 0; orbit < 4; orbit++)
+	{
+		for (let i = 0; i < 8; i++)
+		{
+			let el = template_el.querySelector(`#cell${orbit}_${i}`);
+			el.style.backgroundColor = colours[template[orbit][i]];
+		}
+	}
+}
+
+draw_template();
+
+function click_listener(event)
+{
+	templateselect_el.value = 'custom';
+	let id = event.target.id.substring(4).split('_');
+	let orbit = +id[0], ind = +id[1];
+	template[orbit][ind] = (template[orbit][ind] + 2) % 3;
+	draw_template();
+}
+
+for (let orbit = 0; orbit < 4; orbit++)
+{
+	for (let i = 0; i < 8; i++)
+	{
+		let el = template_el.querySelector(`#cell${orbit}_${i}`);
+		el.addEventListener('click', click_listener);
+	}
+}
+
+function fillderp()
+{
+	derp.value = generate_scramble_sequence_from_template(template);
+}
+
+function fillderpmulti(n)
+{
+	let s = [];
+	for (let i = 0; i < n; i++)
+	{
+		s[i] = (i+1) + '. ' + generate_scramble_sequence_from_template(template);
+	}
+	derp.value = s.join('\n');
+}
+</script>
+</body>
+</html>

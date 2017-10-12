@@ -16,10 +16,11 @@
 </head>
 <body>
 <textarea id='derp' readonly style='width:42em;height:24em;'></textarea><br>
-<button onclick='document.querySelector("derp").value=""'>clear</button>
+<button onclick='document.querySelector("#derp").value=""'>clear</button>
 <button onclick='fillderp()'>generate</button>
 <button onclick='fillderpmulti(5)'>generate 5</button>
-<button onclick='fillderpmulti(20)'>generate 20</button><br>
+<button onclick='fillderpmulti(20)'>generate 20</button>
+<button onclick='fillderpmulti(100)'>generate 100</button><br>
 <button onclick='document.querySelector(".template").style.display="block"'>show template editor</button>
 <button onclick='document.querySelector(".template").style.display="none"'>hide template editor</button><br>
 <label>template preset: <select onchange='set_template_preset(this.value);' id='templateselect'></select></label><br>

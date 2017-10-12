@@ -1,5 +1,5 @@
 /* 666l2c.js - 666 last two centres solver
-version 0.2 (2017-10-08)
+version 0.3 (2017-10-12)
 Copyright 2017; you may do anything (anything!) not covered by copyright law (because this is not an
 EULA, duh?). You may also copy, modify, publish, distribute, sublicense or sell copies of this code,
 subject to the inclusion of this copyright notice in all copies or substantial portions of the code.
@@ -396,8 +396,8 @@ function generate_state_from_template(template)
 function generate_scramble_sequence_from_template(template)
 {
 	let S = generate_state_from_template(template);
-	console.log(arrayify_state(S));
-	return stringify_sign(invert_move_sequence(solve(S)));
+	//console.log(arrayify_state(S));
+	return stringify_sign(invert_move_sequence(solve_big(S)));
 }
 
 /* Alg scoring
@@ -559,7 +559,7 @@ function score_move_sequence2(move_sequence)
 			case '3L':
 			case '3-4r': move_score += 5; break;
 			case 'x': move_score = 0; break;
-			default: move_score = 1000000; break;
+			//default: move_score = 1000000; break;
 		}
 		score += move_score;
 		first = false;
@@ -577,7 +577,7 @@ function choose_nice_algs(generator)
 	{
 		let {value: sol, done} = generator.next();
 		if (optimal_sstm === undefined) optimal_sstm = sol.length;
-		if (sol.length > optimal_sstm + 5) break;
+		if (sol.length > optimal_sstm + 6) break;
 		let score = score_move_sequence2(sol);
 		if (score < lowest)
 		{
@@ -602,8 +602,10 @@ Pruning tables used:
   (78400 states)
 - left oblique + right oblique + all parity
   (78400 states)
-
-TODO: use larger tables and make it faster
+- inner X + left oblique + right oblique
+  (343000 states)
+- outer X + right oblique + left oblique
+  (343000 states; exactly the same as the previous table)
 */
 
 function index_full(state)
@@ -615,6 +617,23 @@ function index_full(state)
 	              70 * comb_to_index(state[2]) + 
 	              4900 * state[4]);
 	return [index0, index1];
+}
+
+function index_big(state)
+{
+	let index0 = (comb_to_index(state[0]) +
+	              70 * comb_to_index(state[3]) + 
+	              4900 * state[4]);
+	let index1 = (comb_to_index(state[1]) +
+	              70 * comb_to_index(state[2]) + 
+	              4900 * state[4]);
+	let index2 = (comb_to_index(state[0]) +
+	              70 * comb_to_index(state[1]) + 
+	              4900 * comb_to_index(state[2]));
+	let index3 = (comb_to_index(state[3]) +
+	              70 * comb_to_index(state[2]) + 
+	              4900 * comb_to_index(state[1]));
+	return [index0, index1, index2, index3];
 }
 
 function solve(state)
@@ -629,6 +648,24 @@ function solve_gen(state)
 	let mtables = [generate_xparity_mtable(), generate_obparity_mtable()];
 	let ptables = [generate_xparity_ptable(), generate_obparity_ptable()];
 	return ida_solve_gen(index_full(state), mtables, ptables);
+}
+
+function solve_big(state)
+{
+	let mtables = [generate_xparity_mtable(), generate_obparity_mtable()];
+	mtables = mtables.concat(generate_xoo_mtables());
+	let ptables = [generate_xparity_ptable(), generate_obparity_ptable()];
+	ptables[2] = ptables[3] = generate_xoo_ptable();
+	return ida_solve(index_big(state), mtables, ptables);
+}
+
+function solve_gen_big(state)
+{
+	let mtables = [generate_xparity_mtable(), generate_obparity_mtable()];
+	mtables = mtables.concat(generate_xoo_mtables());
+	let ptables = [generate_xparity_ptable(), generate_obparity_ptable()];
+	ptables[2] = ptables[3] = generate_xoo_ptable();
+	return ida_solve_gen(index_big(state), mtables, ptables);
 }
 
 let tables = {};
@@ -715,6 +752,39 @@ function generate_obparity_mtable()
 	return tables.obparity_mtable = mtable;
 }
 
+function generate_xoo_mtables()
+{
+	if (tables.xoo_mtables) return tables.xoo_mtables;
+	// two tables!
+	// 0: inner x, left oblique, right oblique
+	// 1: outer x, right oblique, left oblique
+	// (we use the opposite order in the second table because then we can use automorphism magic
+	// to generate only one pruning table)
+	let mtable0 = [], mtable1 = [];
+	let orbit_mtables = generate_orbit_mtables();
+	for (let i = 0; i < 70; i++)
+	{
+		for (let j = 0; j < 70; j++)
+		{
+			for (let k = 0; k < 70; k++)
+			{
+				let ind = i + 70*j + 4900*k;
+				mtable0[ind] = [];
+				mtable1[ind] = [];
+				for (let m = 0; m < moves.length; m++)
+				{
+					let I = orbit_mtables[0][i][m];
+					let J = orbit_mtables[1][j][m];
+					let K = orbit_mtables[2][k][m];
+					let m1 = m !== 0 ? ((m-1)^1)+1 : 0;
+					mtable0[ind][m] = mtable1[ind][m1] = I + 70*J + 4900*K;
+				}
+			}
+		}
+	}
+	return tables.xoo_mtables = [mtable0, mtable1];
+}
+
 function generate_xparity_ptable()
 {
 	if (tables.xparity_ptable) return tables.xparity_ptable;
@@ -752,6 +822,13 @@ function generate_partialobparity_ptable()
 		goal_states[i] = i + 70*j;
 	}
 	return tables.partialobparity_ptable = bfs(mtable, goal_states);
+}
+
+function generate_xoo_ptable()
+{
+	if (tables.xoo_ptable) return tables.xoo_ptable;
+	let mtable = generate_xoo_mtables()[0];
+	return tables.xoo_ptable = bfs(mtable, [0]);
 }
 
 

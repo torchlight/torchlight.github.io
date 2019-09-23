@@ -1,0 +1,405 @@
+<!doctype html>
+<html>
+<head>
+<title>custom loopover</title>
+<style>
+html, body
+{
+background-color: black;
+color: white;
+}
+
+#game
+{
+	font-family: "Droid Sans";
+	font-size: 18px;
+}
+
+#board
+{
+	background-color: white;
+	display: grid;
+	grid-template-columns: repeat(20, 1fr);
+	grid-template-rows: repeat(20, 1fr);
+	width: 1000px;
+	height: 1000px;
+	user-select:none;
+}
+
+.piece
+{
+	background-color: #999;
+	color: white;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.piece.selected
+{
+	animation-name: selectanim;
+	animation-duration: 2s;
+	animation-iteration-count: infinite;
+	animation-timing-function: ease-in-out;
+}
+
+@keyframes selectanim
+{
+	0% {border-radius: 20%;}
+	50% {border-radius: 40%;}
+	100% {border-radius: 20%;}
+}
+</style>
+</head>
+<body>
+<div id='game'>
+<div id='board' tabindex='0'></div>
+<button onclick='if (gameState !== GAME_STATES.SOLVING || confirm("reset the board?")) {scramble(state); redraw(); gameState = GAME_STATES.SCRAMBLED; moveCount = 0; timerLoop(); boardEl.focus();}'>scramble</button>
+<span id='time'>00:00.000</span> / <span id='movecount'>0</span> moves / <span id='mps'>0.000</span> mps
+<br>
+<button onclick='setSize();'>set size</button>
+</div>
+<script>
+let boardEl = document.querySelector('#board');
+let pieceEls = [];
+
+let selected = 0;
+
+let rows = 20;
+let cols = 20;
+let N;
+
+let bgcolours, fgcolours;
+
+function init()
+{
+	selected = 0;
+	N = rows * cols;
+	boardEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+	boardEl.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+	state = Array(N).fill().map((_, i) => i);
+	state.rows = rows;
+	state.cols = cols;
+	if (pieceEls.length < N)
+	{
+		for (let i = pieceEls.length; i < N; i++)
+		{
+			let pieceEl = pieceEls[i] = document.createElement('div');
+			pieceEl.className = 'piece';
+			boardEl.appendChild(pieceEl);
+		}
+	}
+	else if (pieceEls.length > N)
+	{
+		while (pieceEls.length > N)
+		{
+			boardEl.removeChild(pieceEls.pop());
+		}
+	}
+	[bgcolours, fgcolours] = determineColours(rows, cols);
+	redraw(true);
+	gameState = GAME_STATES.INITIAL;
+	moveCount = 0;
+}
+
+function setSize()
+{
+	let s = prompt("enter a size (w x h)");
+	let d = s.replace(/ /g, '').toLowerCase().split("x").map(x => +x);
+	if (d.length === 2 && d[0] >= 2 && d[1] >= 2)
+	{
+		rows = d[1];
+		cols = d[0];
+		init();
+		boardEl.focus();
+	}
+}
+
+function determineColours(rows, cols)
+{
+	let halfrows = (rows+1) >> 1;
+	let halfcols = (cols+1) >> 1;
+	let bgcolours = [], fgcolours = [];
+	let bg = ['rgb(50,0,0)', 'rgb(10,10,10)', 'rgb(0,40,20)', 'rgb(0,20,50)'];
+	for (let r = 0; r < rows; r++)
+	{
+		for (let c = 0; c < cols; c++)
+		{
+			let quadrant = Math.floor(r / halfrows)*2 + Math.floor(c / halfcols);
+			let cx = (c%halfcols + 0.5) / halfcols;
+			let cy = (r%halfrows + 0.5) / halfrows;
+			bgcolours[r*cols+c] = bg[quadrant];
+			fgcolours[r*cols+c] = `rgb(${Math.round((1-cx)*235+15)}, ${Math.round(cy*210+cx*(1-cy)*50+15)}, ${Math.round(cx*220)})`;
+		}
+	}
+	return [bgcolours, fgcolours];
+}
+
+/*
+function normaliseColour(r, g, b)
+{
+	let l = (r+2*g+b)/4;
+	let scale = 0.9 / l;
+	r = Math.sqrt(r*scale);
+	g = Math.sqrt(g*scale);
+	b = Math.sqrt(b*scale);
+	return [r, g, b].map(x => Math.min(Math.max(0, Math.sqrt(x*scale)), 255));
+}
+*/
+
+function divmod(a, b)
+{
+	let d = Math.floor(a/b);
+	return [d, a - d*b];
+}
+
+function redraw(force = false)
+{
+	for (let i = 0; i < N; i++)
+	{
+		let pieceEl = pieceEls[i];
+		if (pieceEl.textContent !== '' + state[i] || force)
+		{
+			pieceEl.textContent = state[i];
+			pieceEl.style.backgroundColor = bgcolours[state[i]];
+			pieceEl.style.color = fgcolours[state[i]];
+		}
+		if (pieceEl.classList.contains('selected') && i !== selected)
+		{
+			pieceEl.classList.remove('selected');
+		}
+		if (!pieceEl.classList.contains('selected') && i === selected)
+		{
+			pieceEl.classList.add('selected');
+		}
+	}
+}
+
+function moveRow(state, row, amount)
+{ // +1 = move to the right
+	let cols = state.cols;
+	amount = ((amount % cols) + cols) % cols;
+	let moved = [];
+	for (let i = 0; i < cols; i++)
+	{
+		moved[i] = state[row*cols + (cols+i-amount) % cols];
+	}
+	for (let i = 0; i < cols; i++)
+	{
+		state[row*cols + i] = moved[i];
+	}
+}
+
+function moveColumn(state, col, amount)
+{ // +1 = move downwards
+	let {rows, cols} = state;
+	amount = ((amount % rows) + rows) % rows;
+	let moved = [];
+	for (let i = 0; i < rows; i++)
+	{
+		moved[i] = state[(rows+i-amount) % rows * cols + col];
+	}
+	for (let i = 0; i < rows; i++)
+	{
+		state[i*cols + col] = moved[i];
+	}
+}
+
+function isSolved(state)
+{
+	for (let i = 0; i < N; i++)
+	{
+		if (state[i] !== i) {return false;}
+	}
+	return true;
+}
+
+function scramble(state)
+{
+	let {rows, cols} = state;
+	let parity = 0;
+	for (let i = 1; i < N; i++)
+	{
+		let r = Math.floor(Math.random()*(i+1));
+		if (r !== i)
+		{
+			parity ^= 1;
+			[state[i], state[r]] = [state[r], state[i]];
+		}
+	}
+	if (parity === 1 && rows % 2 === 1 && cols % 2 === 1)
+	{
+		[state[0], state[1]] = [state[1], state[0]];
+	}
+}
+
+let currentControls = {
+'ArrowLeft': 'left',
+'ArrowRight': 'right',
+'ArrowUp': 'up',
+'ArrowDown': 'down',
+'Space': 'move',
+};
+let controlsState = {'left': false, 'right': false, 'up': false, 'down': false, 'move': false};
+let scrollLock = false;
+
+let initialDelay = 110;
+let updateDelay = x =>  110;
+let keyUpdateTimeout = undefined;
+
+let currentDelay = initialDelay;
+
+function keydown(event)
+{
+	//console.log(`keydown: ${event.code}`);
+	if (event.code in currentControls)
+	{
+		if (controlsState[currentControls[event.code]]) {return false;}
+		controlsState[currentControls[event.code]] = true;
+		//console.log(controlsState.toSource());
+		doMoves();
+		return false;
+	}
+	return true;
+}
+
+function keyup(event)
+{
+	//console.log(`keyup: ${event.code}`);
+	if (event.code in currentControls)
+	{
+		if (!controlsState[currentControls[event.code]]) {return false;}
+		controlsState[currentControls[event.code]] = false;
+		if (keyUpdateTimeout !== undefined)
+		{
+			clearTimeout(keyUpdateTimeout);
+			keyUpdateTimeout = undefined;
+		}
+		currentDelay = initialDelay;
+		doMoves();
+		return false;
+	}
+	return false;
+}
+
+function doMoves()
+{
+	if (keyUpdateTimeout !== undefined) {clearTimeout(keyUpdateTimeout);}
+	let numPressed = controlsState.left + controlsState.right + controlsState.up + controlsState.down;
+	if (numPressed === 1)
+	{
+		if (controlsState.move)
+		{
+			if (controlsState.left) {moveRow(state, Math.floor(selected/cols), -1);}
+			else if (controlsState.right) {moveRow(state, Math.floor(selected/cols), 1);}
+			else if (controlsState.up) {moveColumn(state, selected % cols, -1);}
+			else if (controlsState.down) {moveColumn(state, selected % cols, 1);}
+			if (gameState === GAME_STATES.SCRAMBLED)
+			{
+				gameState = GAME_STATES.SOLVING;
+				timerStart = performance.now();
+				timerLoop();
+			}
+			if (gameState === GAME_STATES.SOLVING)
+			{
+				moveCount++;
+				checkSolved();
+			}
+		}
+		if (!controlsState.move || scrollLock)
+		{
+			let [r, c] = divmod(selected, cols);
+			if (controlsState.left) {c = (c-1+cols)%cols;}
+			else if (controlsState.right) {c = (c+1)%cols;}
+			else if (controlsState.up) {r = (r-1+rows)%rows;}
+			else if (controlsState.down) {r = (r+1)%rows;}
+			selected = r*cols + c;
+		}
+		redraw();
+	}
+	else if (numPressed >= 2 && !controlsState.move)
+	{
+		let [r, c] = divmod(selected, cols);
+		if (controlsState.left) {c = (c-1+cols)%cols;}
+		if (controlsState.right) {c = (c+1)%cols;}
+		if (controlsState.up) {r = (r-1+rows)%rows;}
+		if (controlsState.down) {r = (r+1)%rows;}
+		selected = r*cols + c;
+		redraw();
+	}
+	if (numPressed >= 1)
+	{
+		keyUpdateTimeout = setTimeout(doMoves, currentDelay);
+		currentDelay = updateDelay(currentDelay);
+	}
+}
+
+function clearControlsState()
+{
+	let keys = ['left', 'right', 'up', 'down', 'move'];
+	for (let key of keys) {controlsState[key] = false;}
+	currentDelay = initialDelay;
+	if (keyUpdateTimeout !== undefined)
+	{
+		clearTimeout(keyUpdateTimeout);
+		keyUpdateTimeout = undefined;
+	}
+	currentDelay = initialDelay;
+}
+
+boardEl.addEventListener('keydown', keydown);
+boardEl.addEventListener('keyup', keyup);
+boardEl.addEventListener('blur', clearControlsState);
+
+
+let GAME_STATES = {'INITIAL': Symbol('initial'), 'SCRAMBLED': Symbol('scrambled'), 'SOLVING': Symbol('solving'), 'SOLVED': Symbol('solved')};
+let gameState = GAME_STATES.SOLVED;
+
+let timerStart = undefined;
+let finalTime = undefined;
+let moveCount = 0;
+
+function timerLoop()
+{
+	let time;
+	if (gameState === GAME_STATES.SOLVING)
+	{
+		time = performance.now() - timerStart;
+		requestAnimationFrame(timerLoop);
+	}
+	else if (gameState == GAME_STATES.SOLVED)
+	{
+		time =  finalTime;
+	}
+	else
+	{
+		time = 0;
+	}
+	document.querySelector('#time').textContent = formatTime(time);
+	document.querySelector('#movecount').textContent = moveCount;
+	document.querySelector('#mps').textContent = time !== 0 ? (1000*(moveCount-1)/time).toFixed(3) : '0.000';
+}
+
+function formatTime(ms)
+{
+	ms = Math.round(ms);
+	let [m, s] = divmod(ms, 60000);
+	return m + ':' + (s/1000+100).toFixed(3).substring(1);
+}
+
+function checkSolved()
+{
+	if (isSolved(state))
+	{
+		gameState = GAME_STATES.SOLVED;
+		finalTime = performance.now() - timerStart;
+		timerLoop();
+	}
+}
+
+init();
+boardEl.focus();
+
+</script>
+</body>
+</html>

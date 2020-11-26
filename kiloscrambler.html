@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='UTF-8'>
+<title>Kilominx scramble generator</title>
+<style>
+/* stuff */
+html {background-color:white; color:black;}
+body {font-size:16px;}
+button,label {font-size:0.75em; font-family:sans-serif; margin-left:0.4em; margin-right:0.4em;}
+svg {/*background-color:#eee;*/}
+.hidescrambles svg {display:none;}
+#scrambles {font-family:monospace;}
+</style>
+<script src='kilosolver.js'></script>
+</head>
+<body>
+<form autocomplete='off' action='#' onsubmit='return false'>
+<label><input type='checkbox' onchange='demo_mode=!this.checked'>use random-state scrambles</label>
+<label><input type='checkbox' onchange='draw_scrambles=this.checked' checked>draw scrambles</label>
+<label><input type='checkbox' onchange='auto_copy=this.checked'>automatically copy</label>
+<br>
+<label># scrambles: <input type='text' onchange='num_scrambles=this.value' value='7'></label>
+<input type='submit' onclick='fill_scramble_table()' value='generate scrambles'>
+</form>
+<table><tbody id='scrambles'></tbody></table>
+<script>
+'use strict';
+let demo_mode = true;
+let draw_scrambles = true;
+let auto_copy = false;
+let num_scrambles = 7;
+
+function fill_scramble_table()
+{
+	const table_el = document.querySelector('#scrambles');
+	if (num_scrambles >= 200) {PHASE4_THRESHOLD = Math.max(PHASE4_THRESHOLD, 8);}
+	// the crossover point where increasing the threshold to 8 pays off is actually around
+	// 1300 scrambles (on Firefox), but using a higher threshold also reduces the variance
+	// in generation times. consistently not-very-fast is better than occasionally-very-slow.
+	const scramble_generator = demo_mode ? generate_hybrid_scramble : generate_random_state_scramble;
+	let n = table_el.querySelectorAll('svg').length;
+	let scramble_strings = [];
+	while (n < num_scrambles)
+	{
+		let tr_el = document.createElement('tr');
+		let td_el_image = document.createElement('td');
+		let td_el_moves = document.createElement('td');
+		tr_el.appendChild(td_el_image);
+		tr_el.appendChild(td_el_moves);
+		let svg_el = create_svg_template();
+		td_el_image.appendChild(svg_el);
+		table_el.appendChild(tr_el);
+		n++;
+	}
+	let svg_els = table_el.querySelectorAll('svg');
+	for (let i = num_scrambles; i < svg_els.length; i++)
+	{
+		let svg_el = svg_els[i];
+		let tr_el = svg_el.parentNode.parentNode; // tfw no parent selector
+		table_el.removeChild(tr_el);
+	}
+	for (let i = 0; i < num_scrambles; i++)
+	{
+		let svg_el = svg_els[i];
+		let td_el_moves = svg_el.parentNode.parentNode.lastChild;
+		let move_seq = scramble_generator();
+		let state = apply_move_sequence(id, move_seq);
+		draw_state(svg_el, state);
+		let scramble_string = stringify_move_sequence(move_seq);
+		td_el_moves.textContent = scramble_string;
+		scramble_strings.push(scramble_string);
+	}
+	if (draw_scrambles) {table_el.classList.remove('hidescrambles');}
+	else {table_el.classList.add('hidescrambles');}
+	if (auto_copy)
+	{
+		navigator.clipboard.writeText(scramble_strings.join('\n'))
+			.then(
+				() => {console.log('copied ' + num_scrambles + ' scrambles')},
+				() => {alert('copy failed!');}
+			);
+	}
+}
+</script>
+</body>
+</html>

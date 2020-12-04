@@ -1,5 +1,5 @@
 /* kilosolver.js - A kilominx solver
-version 0.5 (2020-11-26)
+version 0.6 (2020-12-05)
 Copyright (c) 2016, 2020
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -185,6 +185,62 @@ function evenpermutation_to_index(perm)
 {
 	return permutation_to_index(perm) >> 1;
 }
+
+let [evenpermutation10_to_index, index_to_evenpermutation10] = (() => {
+
+let index_in_set_bits = new Int8Array(1024 * 10);
+let look_up_set_bits = new Int8Array(1024 * 10);
+for (let i = 0; i < 1024; i++)
+{
+	for (let j = 0, counter = 0; j < 10; j++)
+	{
+		if (((i >>> j) & 1) === 0) {continue;}
+		index_in_set_bits[(j << 10) | i] = counter;
+		look_up_set_bits[(counter << 10) | i] = j;
+		counter++;
+	}
+}
+
+function evenpermutation10_to_index(perm)
+{
+	let unused = 0x3ff; // track which values in 0..9 haven't been used so far
+	let f = 181440; // = 9!/2
+	let ind = 0;
+	for (let i = 0; i < 8; i++)
+	{
+		let v = perm[i];
+		ind += index_in_set_bits[unused | (v << 10)] * f;
+		unused &= ~(1 << v);
+		f /= 9-i;
+	}
+	return ind;
+}
+
+// note: this is *not* a drop-in replacement for index_to_evenpermutation!
+function index_to_evenpermutation10(ind, perm)
+{
+	let unused = 0x3ff;
+	let f = 181440; // = 9!/2
+	let parity = 0;
+	for (let i = 0; i < 8; i++)
+	{
+		let a = (ind / f) | 0;
+		ind -= a * f;
+		parity ^= (a & 1);
+		let v = look_up_set_bits[unused | (a << 10)];
+		perm[i] = v;
+		unused &= ~(1 << v);
+		f /= 9-i;
+	}
+	// the last two elements are uniquely determined by the other ten
+	perm[8] = look_up_set_bits[unused | (parity << 10)];
+	perm[9] = look_up_set_bits[unused | ((parity^1) << 10)];
+	return perm;
+}
+
+return [evenpermutation10_to_index, index_to_evenpermutation10];
+
+})();
 
 function comb_to_index(l)
 {
@@ -946,42 +1002,24 @@ function generate_phase4_permutation_mtable()
 {
 	if (tables.phase4pm) return tables.phase4pm;
 	const HALFFACT10 = factorial(10) / 2, n = 10;
+	let pre = [0, 1, 2, 3, 4, -1, -1, -1, -1, 5, 6, 7, 8, 9];
+	let post = [0, 1, 2, 3, 4, 9, 10, 11, 12, 13];
+	let move_permutations = [
+		compose(pre, compose(move_U[0], post)),
+		compose(pre, compose(move_R[0], post)),
+		compose(pre, compose(move_F[0], post)),
+	];
 	let mtable = Array(HALFFACT10);
-	let perm = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+	let perm = Array(10);
 	for (let i = 0; i < HALFFACT10; i++)
 	{
-		//if (i % 1000 === 0) print(i);
+		index_to_evenpermutation10(i, perm);
 		mtable[i] = [];
-		let p = perm.map(x => x + 4*(x >= 5));
-		p.splice(5, 0, 5, 6, 7, 8);
 		for (let move_index = 0; move_index < 3; move_index++)
 		{
-			let move = moves[move_index];
-			let new_p = compose(p, move[0]).slice(0, 14);
-			new_p.splice(5, 4);
-			new_p = new_p.map(x => x - 4*(x >= 5));
-			mtable[i][move_index] = evenpermutation_to_index(new_p);
+			let new_perm = compose(perm, move_permutations[move_index]);
+			mtable[i][move_index] = evenpermutation10_to_index(new_perm);
 		}
-		
-		if (i === HALFFACT10 - 1) break;
-		// update perm to lex-next even permutation
-		// this should be faster than calling index_to_evenpermutation repeatedly
-		let parity = 0;
-		do {
-			for (let k = n-2; k >= 0; k--)
-			{
-				if (perm[k] > perm[k+1]) continue;
-				let l = k+1;
-				for (let L = l; L < n; L++) if (perm[L] > perm[k]) l = L;
-				[perm[k], perm[l]] = [perm[l], perm[k]];
-				parity ^= 1;
-				for (let j = 0; k+1+j < n-1-j; j++, parity ^= 1)
-				{
-					[perm[k+1+j], perm[n-1-j]] = [perm[n-1-j], perm[k+1+j]];
-				}
-				break;
-			}
-		} while (parity !== 0);
 	}
 	return tables.phase4pm = mtable;
 }
@@ -1093,27 +1131,30 @@ function bfs(mtable, goal_states)
 	let N = mtable.length;
 	let nmoves = mtable[0].length;
 	let ptable = Array(N).fill(-1);
-	let queue = goal_states.slice(), new_queue = [];
+	for (let state of goal_states) {ptable[state] = 0;}
 	let depth = 0;
-	while (queue.length > 0)
+	let done = false;
+	while (!done)
 	{
-		new_queue.length = 0;
-		for (let state of queue)
+		done = true;
+		for (let state = 0; state < N; state++)
 		{
-			if (ptable[state] !== -1) continue;
-			ptable[state] = depth;
+			if (ptable[state] !== depth) {continue;}
 			for (let move_index = 0; move_index < nmoves; move_index++)
 			{
 				let new_state = mtable[state][move_index];
-				while (new_state != state)
+				while (new_state !== state)
 				{
-					new_queue.push(new_state);
+					if (ptable[new_state] === -1)
+					{
+						done = false;
+						ptable[new_state] = depth + 1;
+					}
 					new_state = mtable[new_state][move_index];
 				}
 			}
 		}
-		[queue, new_queue] = [new_queue, queue];
-		depth += 1;
+		depth++;
 	}
 	return ptable;
 }

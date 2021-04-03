@@ -1,6 +1,6 @@
 /* kilosolver.js - A kilominx solver
-version 0.6 (2020-12-05)
-Copyright (c) 2016, 2020
+version 0.7 (2021-04-03)
+Copyright (c) 2016, 2020, 2021
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -360,7 +360,7 @@ function random_state()
 	let p = [0];
 	for (let i = 1; i < 20; i++)
 	{
-		let r = Math.floor(Math.random() * i);
+		let r = Math.floor(Math.random() * (i+1));
 		p[i] = p[r];
 		p[r] = i;
 	}

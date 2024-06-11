@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+<title>random string generator</title>
+<style>
+body
+{
+margin-left: 0;
+margin-right: 0;
+font-size: 8vw;
+font-family: sans-serif;
+background-color: black;
+color: #ddd;
+text-align: center;
+}
+
+select, input
+{
+font-size: 1em;
+}
+
+.button-container
+{
+}
+
+button
+{
+font-size: 2em;
+width: 40vw;
+height: 24vw;
+border-color: #4d5;
+border-width: 1vw;
+border-radius: 5vw;
+background-color: black;
+}
+button:active
+{
+background-color: #333;
+}
+
+.option-container
+{
+margin-top: 3vw;
+margin-bottom: 3vw;
+}
+
+.option-container input
+{
+width: 3em;
+}
+
+.output-row
+{
+margin-top: 3vw;
+margin-bottom: 3vw;
+}
+
+.output-row input
+{
+font-family: monospace;
+font-size: 1em;
+width: 90%;
+height: 2em;
+border-radius: 3vw;
+border-width: 0;
+background-color: #222;
+color: inherit;
+text-align: inherit;
+
+}
+</style>
+</head>
+<body>
+<div class='button-container'><button class='option' onclick='toggle_options();'>⚙️</button> <button class='generate' onclick='generate_string()'>🎲</button></div>
+<div class='option-container'>
+<select id='string-type'>
+<option value='0123456789'>numbers</option>
+<option value='abcdefghijklmnopqrstuvwxyz'>letters</option>
+<option value='ABCDEFGHIJKLMNOPQRSTUVWXYZ'>LETTERS</option>
+</select> <input type='number' value='8' min='1' max='100' id='string-length'>
+</div>
+<div id='output-log'></div>
+<template id='output-row-template'>
+<div class='output-row'><input type='text' readonly value='foo' onclick='copy_to_clipboard(this.value);'></div>
+</template>
+</div>
+<script>
+let output_row_template = document.querySelector('template#output-row-template').content;
+
+function toggle_options()
+{
+let options_el = document.querySelector('.option-container');
+console.log(options_el.style.display);
+switch(options_el.style.display)
+{
+case 'none': options_el.style.display = 'block'; break;
+default: options_el.style.display = 'none'; break;
+}
+}
+
+function copy_to_clipboard(text)
+{
+	navigator.clipboard.writeText(text).then(
+		() => {console.log('copied: ' + text)},
+		() => {console.log('copy failed');}
+	);
+}
+
+function generate_string()
+{
+	let alphabet = document.querySelector('#string-type').value;
+	let length = +document.querySelector('#string-length').value;
+	let random_string = '';
+	for (let i = 0; i < length; i++)
+	{
+		random_string += alphabet[Math.floor(Math.random()*alphabet.length)];
+	}
+	copy_to_clipboard(random_string);
+	let row_el = output_row_template.cloneNode(true);
+	row_el.querySelector('input').value = random_string;
+	let output_log_el = document.querySelector('#output-log');
+	output_log_el.insertBefore(row_el, output_log_el.firstChild);
+}
+</script>
+</body>
+</html>
